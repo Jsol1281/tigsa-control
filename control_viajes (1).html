@@ -1,0 +1,2812 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TIGSA — Control Logístico</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f4f9; color: #1a1a2e; min-height: 100vh; }
+
+header { background: #1a1a2e; color: white; padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+header h1 { font-size: 15px; font-weight: 600; }
+header span { font-size: 11px; color: #64748b; }
+
+.toolbar { background: white; border-bottom: 2px solid #e2e8f0; padding: 12px 28px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar-sep { width: 1px; height: 36px; background: #e2e8f0; margin: 0 4px; }
+.btn { display: flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border: 1.5px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.btn-icon { font-size: 15px; }
+.btn-new      { background: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.3); margin-left: auto; }
+.btn-new:hover { background: #1d4ed8; transform: translateY(-1px); }
+.btn-template { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.btn-template:hover { background: #e0e7ff; transform: translateY(-1px); }
+.btn-import   { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+.btn-import:hover { background: #dcfce7; transform: translateY(-1px); }
+.btn-export   { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+.btn-export:hover { background: #fef3c7; transform: translateY(-1px); }
+.btn-cfg      { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+.btn-cfg:hover { background: #f1f5f9; transform: translateY(-1px); }
+#file-input { display: none; }
+
+.main { padding: 20px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+/* CONFIG PANEL */
+.cfg-panel { background: white; border-radius: 10px; border: 1px solid #e2e8f0; padding: 16px; }
+.cfg-panel h3 { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; }
+.cfg-blocks { display: flex; flex-direction: column; gap: 8px; }
+.cfg-block { border-radius: 7px; padding: 10px 14px; border: 1px solid; display: flex; align-items: center; gap: 14px; }
+.cfg-block.solicitud   { border-color: #ddd6fe; background: #f5f3ff; }
+.cfg-block.precarga    { border-color: #bfdbfe; background: #eff6ff; }
+.cfg-block.pretransito { border-color: #a7f3d0; background: #f0fdf4; }
+.cfg-block.transito    { border-color: #fde68a; background: #fffbeb; }
+.cfg-block-title { font-size: 10px; font-weight: 700; white-space: nowrap; min-width: 80px; }
+.solicitud   .cfg-block-title { color: #6d28d9; }
+.precarga    .cfg-block-title { color: #1d4ed8; }
+.pretransito .cfg-block-title { color: #047857; }
+.transito    .cfg-block-title { color: #b45309; }
+.cfg-stages-wrap { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+.cfg-stage { display: flex; align-items: center; gap: 4px; padding: 3px 6px; background: white; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 10px; color: #475569; }
+.cfg-stage span { flex: 1; }
+.cfg-order { display: flex; flex-direction: column; gap: 1px; }
+.ord-btn { background: none; border: 1px solid #e2e8f0; border-radius: 3px; color: #94a3b8; cursor: pointer; font-size: 8px; padding: 1px 3px; line-height: 1; }
+.ord-btn:hover:not(:disabled) { background: #f1f5f9; color: #475569; }
+.ord-btn:disabled { opacity: 0.25; cursor: default; }
+.cfg-remove { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 13px; padding: 0 2px; }
+.cfg-remove:hover { color: #ef4444; }
+.cfg-add { display: flex; gap: 4px; flex-shrink: 0; }
+.cfg-add input { padding: 4px 7px; font-size: 10px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; color: #1a1a2e; font-family: inherit; width: 140px; }
+.cfg-add input:focus { outline: none; border-color: #93c5fd; }
+.cfg-add button { padding: 4px 10px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; color: white; }
+.solicitud   .cfg-add button { background: #7c3aed; }
+.precarga    .cfg-add button { background: #2563eb; }
+.pretransito .cfg-add button { background: #059669; }
+.cfg-block.despacho  { border-color: #fde68a; background: #fffbeb; }
+.despacho .cfg-block-title { color: #92400e; }
+.despacho .cfg-add button  { background: #d97706; }
+.transito    .cfg-add button { background: #d97706; }
+
+/* BLOCK SECTIONS */
+.block-section { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }
+
+.block-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px;
+  background: #1a1a2e;
+  border-bottom: none;
+  position: sticky; top: 131px; z-index: 5;
+}
+.block-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: white; opacity: 0.7; }
+.block-title { font-size: 14px; font-weight: 700; color: white; }
+.block-count { font-size: 11px; padding: 2px 10px; border-radius: 99px; font-weight: 600; margin-left: auto; background: rgba(255,255,255,0.15); color: white; }
+
+.block-empty { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
+
+/* TRIP ROW inside block */
+.trip-row {
+  display: grid;
+  grid-template-columns: 520px 1fr 46px;
+  border-bottom: 2px solid #1a1a2e;
+  align-items: stretch;
+  min-height: 0;
+}
+.trip-row:last-child { border-bottom: none; }
+.trip-row:hover { filter: brightness(0.96); }
+
+/* INFO CELL */
+.cell-info { padding: 8px 12px; border-right: 1px solid #e2e8f0; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 3px 10px; align-content: center; }
+.cell-info .full-row { grid-column: 1 / -1; }
+.irow { display: flex; align-items: flex-start; gap: 5px; min-width: 0; }
+.iico { font-size: 11px; flex-shrink: 0; width: 14px; text-align: center; }
+.ival { font-size: 12px; color: #1a1a2e; font-weight: 500; white-space: normal; word-break: break-word; overflow: visible; max-width: 100%; line-height: 1.3; }
+.ival.dest { color: #2563eb; }
+.ival.muted { color: #1a1a2e; font-weight: 400; }
+.ival.vid { color: #94a3b8; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.ival.no-piloto { color: #f59e0b; font-style: italic; font-weight: 400; font-size: 11px; }
+.divider { height: 1px; background: #f1f5f9; margin: 3px 0; }
+
+/* Editable */
+.editable-wrap { display: flex; align-items: center; gap: 3px; }
+.edit-btn { background: none; border: none; cursor: pointer; color: #cbd5e1; font-size: 10px; padding: 0 2px; }
+.edit-btn:hover { color: #7c3aed; }
+.inline-input { font-size: 11px; font-family: inherit; border: 1px solid #c4b5fd; border-radius: 4px; padding: 2px 6px; color: #1a1a2e; width: 130px; background: #faf5ff; }
+.field-input { font-size: 11px; font-family: inherit; border: 1px solid #c4b5fd; border-radius: 4px; padding: 2px 6px; color: #1a1a2e; width: 100%; max-width: 140px; background: #faf5ff; }
+.field-input:focus { outline: none; border-color: #7c3aed; }
+.inline-input:focus { outline: none; }
+.vid-wrap { display: flex; align-items: center; gap: 3px; }
+.vid-edit-btn { background: none; border: none; cursor: pointer; color: #cbd5e1; font-size: 9px; padding: 0 1px; }
+.vid-edit-btn:hover { color: #2563eb; }
+.vid-input { font-size: 10px; font-family: inherit; font-weight: 700; text-transform: uppercase; border: 1px solid #93c5fd; border-radius: 4px; padding: 2px 5px; color: #2563eb; background: #eff6ff; width: 80px; }
+.vid-input:focus { outline: none; }
+
+/* PILLS CELL */
+.cell-pills { padding: 10px 14px; display: flex; align-items: center; align-content: center; flex-wrap: wrap; gap: 6px; flex: 1; }
+.pill { border-radius: 99px; cursor: pointer; border: 2px solid; transition: all 0.12s; user-select: none; white-space: nowrap; font-weight: 600; }
+.pill.locked { opacity: 0.3; cursor: not-allowed; }
+
+.solicitud-pills   .pill      { border-color: #c4b5fd; color: #6d28d9; background: #f5f3ff; }
+.solicitud-pills   .pill.done { background: #7c3aed; border-color: #7c3aed; color: white; }
+.precarga-pills    .pill      { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.precarga-pills    .pill.done { background: #2563eb; border-color: #2563eb; color: white; }
+.pretransito-pills .pill      { border-color: #6ee7b7; color: #047857; background: #f0fdf4; }
+.pretransito-pills .pill.done { background: #059669; border-color: #059669; color: white; }
+.despacho-pills .pill         { border-color: #fcd34d; color: #92400e; background: #fffbeb; }
+.despacho-pills .pill.done    { background: #d97706; border-color: #d97706; color: white; }
+.transito-pills    .pill      { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
+.transito-pills    .pill.done { background: #d97706; border-color: #d97706; color: white; }
+
+/* DELETE */
+.cell-actions { display: flex; align-items: center; justify-content: center; padding: 0 8px; border-left: 1px solid #e2e8f0; }
+.del-btn { background: #fef2f2; border: 2px solid #fca5a5; color: #ef4444; font-size: 18px; font-weight: 700; cursor: pointer; padding: 6px 10px; border-radius: 8px; line-height: 1; transition: all 0.15s; }
+.del-btn:hover { background: #ef4444; color: white; border-color: #ef4444; transform: scale(1.1); }
+
+/* TOAST */
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: white; padding: 10px 20px; border-radius: 8px; font-size: 12px; z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* MODAL */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 999; }
+.modal { background: white; border-radius: 12px; padding: 24px; width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; }
+.modal h2 { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+.modal-sub { font-size: 11px; color: #94a3b8; margin-bottom: 16px; }
+.sep { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 10px; margin: 12px 0 8px; }
+.fg { margin-bottom: 9px; }
+.fg label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; display: block; margin-bottom: 3px; }
+.fg input { width: 100%; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #1a1a2e; font-family: inherit; }
+.fg input:focus { outline: none; border-color: #7c3aed; }
+.fg-row { display: grid; gap: 9px; }
+.fg-row.c2 { grid-template-columns: 1fr 1fr; }
+.fg-row.c3 { grid-template-columns: 1fr 1fr 1fr; }
+.m-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.m-cancel { padding: 9px 18px; border: 1.5px solid #e2e8f0; background: white; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.m-save { padding: 9px 18px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+.pin-box { width: 52px; height: 60px; text-align: center; font-size: 24px; font-weight: 700; font-family: inherit; border: 2px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #1a1a2e; transition: border-color 0.15s; }
+.pin-box:focus { outline: none; border-color: #7c3aed; background: #faf5ff; }
+
+.hidden { display: none !important; }
+
+/* FILTROS */
+.filtros-bar { background:white; border-radius:10px; border:1px solid #e2e8f0; padding:10px 16px; margin-bottom:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+/* BARRA VIAJE SELECCIONADO */
+.viaje-sel-bar { background:#1a1a2e; border-radius:10px; padding:8px 14px; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.viaje-sel-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; }
+.viaje-sel-id { font-size:13px; font-weight:800; color:#a5b4fc; white-space:nowrap; }
+.viaje-sel-info { font-size:12px; color:#cbd5e1; white-space:nowrap; }
+.btn-sel { padding:5px 11px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; border:1.5px solid; transition:all 0.12s; white-space:nowrap; }
+.btn-sel:hover { opacity:0.85; }
+.filtro-item { display:flex; flex-direction:column; gap:3px; min-width:140px; flex:1; }
+.filtro-item label { font-size:9px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; }
+.filtro-item select, .filtro-item input[type=date] { padding:5px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:12px; font-family:inherit; color:#1a1a2e; background:white; cursor:pointer; }
+.filtro-item select:focus, .filtro-item input[type=date]:focus { outline:none; border-color:#2563eb; }
+.filtro-clear { padding:5px 12px; border-radius:6px; border:1px solid #fca5a5; background:#fef2f2; color:#dc2626; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; align-self:flex-end; margin-bottom:1px; }
+.filtro-clear:hover { background:#fee2e2; }
+.filtros-count { font-size:11px; color:#64748b; align-self:flex-end; margin-bottom:3px; white-space:nowrap; }
+
+/* PILOTOS TABLE */
+.pilotos-wrap { background:white; border-radius:12px; border:1px solid #e2e8f0; }
+.pilotos-header { background:#1a1a2e; color:white; padding:14px 20px; display:flex; align-items:center; gap:10px; }
+.pilotos-header h2 { font-size:14px; font-weight:700; }
+.pilotos-count { font-size:11px; padding:2px 10px; border-radius:99px; background:rgba(255,255,255,0.15); color:white; font-weight:600; margin-left:auto; }
+.pilotos-empty { padding:40px; text-align:center; color:#94a3b8; font-size:13px; }
+.pilotos-table { width:100%; border-collapse:collapse; }
+.pilotos-table th { background:#f8fafc; padding:8px 14px; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid #e2e8f0; text-align:left; }
+.pilotos-table td { padding:9px 14px; font-size:12px; border-bottom:1px solid #f1f5f9; color:#1a1a2e; vertical-align:middle; }
+.pilotos-table tr:last-child td { border-bottom:none; }
+.pilotos-table tr:hover td { background:#fafbfc; }
+.pil-nombre { font-weight:700; }
+.pil-dest { color:#2563eb; font-weight:500; }
+.pil-fecha { color:#64748b; font-size:11px; }
+.pil-del { background:#fef2f2; border:1.5px solid #fca5a5; color:#ef4444; font-size:12px; cursor:pointer; padding:4px 9px; border-radius:7px; transition:all 0.12s; }
+.pil-del:hover { background:#ef4444; color:white; border-color:#ef4444; }
+.pil-asignar { background:#eff6ff; border:1.5px solid #93c5fd; color:#2563eb; font-size:11px; font-weight:600; cursor:pointer; padding:4px 10px; border-radius:7px; font-family:inherit; transition:all 0.12s; margin-right:4px; }
+.pil-asignar:hover { background:#2563eb; color:white; border-color:#2563eb; }
+
+/* RESUMEN TABLE */
+.resumen-wrap { background:white; border-radius:12px; border:1px solid #e2e8f0; }
+.resumen-header { background:#1a1a2e; color:white; padding:14px 20px; display:flex; align-items:center; gap:10px; }
+.resumen-header h2 { font-size:14px; font-weight:700; }
+.resumen-count { font-size:11px; padding:2px 10px; border-radius:99px; background:rgba(255,255,255,0.15); color:white; font-weight:600; margin-left:auto; }
+.resumen-empty { padding:40px; text-align:center; color:#94a3b8; font-size:13px; }
+.resumen-scroll { overflow-x:auto; }
+.resumen-cols { table-layout:fixed; border-collapse:collapse; width:100%; min-width:930px; }
+.resumen-header-table { position:sticky; top:97px; z-index:10; background:#f8fafc; border-bottom:2px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.07); }
+.resumen-header-table th { padding:8px 10px; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; text-align:left; white-space:nowrap; background:#f8fafc; }
+.resumen-body-table td { padding:0; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.resumen-body-table tr:hover td { background:#fafbfc; }
+.resumen-table { width:100%; border-collapse:collapse; min-width:930px; }
+.resumen-table th { background:#f8fafc; padding:8px 10px; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; border-bottom:2px solid #e2e8f0; text-align:left; white-space:nowrap; }
+.resumen-table td { padding:0; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.resumen-table tr:last-child td { border-bottom:none; }
+.resumen-table tr:hover td { background:#fafbfc; }
+.rcell { padding:7px 10px; font-size:12px; color:#1a1a2e; display:block; min-height:32px; line-height:1.4; }
+.rcell.dest { color:#2563eb; font-weight:500; }
+.rcell.muted { color:#64748b; }
+.rcell.money { font-weight:700; color:#1a1a2e; font-variant-numeric:tabular-nums; }
+.rcell.util-pos { color:#15803d; font-weight:700; }
+.rcell.util-neg { color:#dc2626; font-weight:700; }
+.rcell.util-zero { color:#64748b; font-weight:600; }
+.rcell-edit { width:100%; padding:5px 8px; border:none; background:transparent; font-size:12px; color:#1a1a2e; font-family:inherit; cursor:pointer; }
+.rcell-edit:focus { outline:2px solid #7c3aed; border-radius:4px; background:#faf5ff; }
+.rcell-edit::placeholder { color:#cbd5e1; }
+.resumen-table tfoot td { border-top: 2px solid #334155; }
+.oc-badge { font-size:11px; font-weight:700; color:#7c3aed; background:#f5f3ff; border:1px solid #c4b5fd; border-radius:5px; padding:2px 7px; display:inline-block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TIGSA — Control Logístico</h1>
+  <span id="fecha-hdr"></span>
+</header>
+
+<!-- BARRA PRINCIPAL: TABS + ACCIONES PRIMARIAS -->
+<div id="mega-toolbar" style="background:white;border-bottom:1px solid #e2e8f0;padding:0 16px 0 28px;display:flex;align-items:stretch;gap:0;position:sticky;top:49px;z-index:98;box-shadow:none;">
+
+  <!-- Pestañas -->
+  <button id="tab-tablero" onclick="switchTab('tablero')" style="padding:0 18px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:none;border-bottom:3px solid #2563eb;color:#2563eb;white-space:nowrap;height:44px;">🚛 Tablero</button>
+  <button id="tab-pilotos" onclick="switchTab('pilotos')" style="padding:0 18px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:none;border-bottom:3px solid transparent;color:#94a3b8;white-space:nowrap;height:44px;">🧑‍✈️ Pilotos <span id="pilotos-badge" style="display:none;background:#ef4444;color:white;border-radius:99px;font-size:10px;padding:1px 6px;margin-left:3px;"></span></button>
+  <button id="tab-resumen" onclick="switchTab('resumen')" style="padding:0 18px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:none;border-bottom:3px solid transparent;color:#94a3b8;white-space:nowrap;height:44px;">📊 Resumen de carga</button>
+
+  <!-- Separador -->
+  <div style="width:1px;background:#e2e8f0;margin:8px 10px;"></div>
+
+  <!-- Botones izquierda contextuales -->
+  <div id="btns-tablero" style="display:flex;align-items:center;gap:8px;">
+    <button class="btn btn-cfg" onclick="toggleCfg()"><span class="btn-icon">⚙</span> Etapas</button>
+    <button class="btn btn-cfg" id="btn-filtros" onclick="toggleFiltros()"><span class="btn-icon">🔍</span> Filtros</button>
+  </div>
+  <div id="btns-pilotos" style="display:none;align-items:center;gap:8px;"></div>
+  <div id="btns-resumen" style="display:none;align-items:center;gap:8px;"></div>
+
+  <!-- Acción principal derecha -->
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 0 6px 12px;">
+    <div style="width:1px;background:#e2e8f0;height:26px;" id="sep-accion"></div>
+    <button id="btn-accion-principal" class="btn btn-new" onclick="openModal()"><span class="btn-icon">＋</span> Nueva solicitud</button>
+  </div>
+</div>
+
+<!-- MENÚ SECUNDARIO: botones de archivo y herramientas -->
+<div id="menu-secundario" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:6px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:93px;z-index:97;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+  <span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-right:4px;">Archivo</span>
+
+  <!-- Tablero -->
+  <div id="menu-sec-tablero" style="display:flex;align-items:center;gap:8px;">
+    <button class="btn btn-template" onclick="descargarPlantilla()"><span class="btn-icon">📄</span> Plantilla Excel</button>
+    <button class="btn btn-import" onclick="document.getElementById('file-input').click()"><span class="btn-icon">⬆</span> Importar Excel</button>
+    <button class="btn btn-export" onclick="exportarExcel()"><span class="btn-icon">⬇</span> Exportar estado</button>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="importarArchivo(event)">
+    <div style="width:1px;background:#e2e8f0;height:22px;"></div>
+    <button class="btn" style="background:#f0fdf4;color:#15803d;border-color:#86efac;" onclick="abrirResumenWA()"><span class="btn-icon">📲</span> Resumen WA</button>
+    <button class="btn" style="background:#fef9c3;color:#854d0e;border-color:#fcd34d;" onclick="abrirAdelantos()"><span class="btn-icon">💵</span> Adelantos del día</button>
+    <button class="btn" style="background:#eff6ff;color:#1d4ed8;border-color:#93c5fd;" onclick="abrirCargaManana()"><span class="btn-icon">🌅</span> Carga mañana</button>
+    <button class="btn" style="background:#f5f3ff;color:#6d28d9;border-color:#c4b5fd;" onclick="verArchivados()"><span class="btn-icon">🗂</span> Archivados <span id="badge-archivados" style="display:none;background:#7c3aed;color:white;border-radius:99px;font-size:10px;padding:1px 6px;margin-left:2px;"></span></button>
+  </div>
+
+  <!-- Pilotos -->
+  <div id="menu-sec-pilotos" style="display:none;align-items:center;gap:8px;">
+    <button class="btn btn-import" onclick="document.getElementById('file-pilotos').click()"><span class="btn-icon">⬆</span> Importar pilotos</button>
+    <button class="btn btn-export" onclick="exportarPilotos()"><span class="btn-icon">⬇</span> Exportar pilotos</button>
+    <input type="file" id="file-pilotos" accept=".xlsx,.xls,.csv" onchange="importarPilotos(event)" style="display:none;">
+  </div>
+
+  <!-- Resumen -->
+  <div id="menu-sec-resumen" style="display:none;align-items:center;gap:8px;">
+    <button class="btn btn-import" onclick="document.getElementById('file-resumen').click()"><span class="btn-icon">⬆</span> Importar resumen</button>
+    <button class="btn btn-export" onclick="exportarResumen()"><span class="btn-icon">⬇</span> Exportar resumen</button>
+    <input type="file" id="file-resumen" accept=".xlsx,.xls,.csv" onchange="importarResumen(event)" style="display:none;">
+  </div>
+</div>
+
+<!-- PANTALLA TABLERO -->
+<div id="screen-tablero" class="main">
+  <div class="cfg-panel hidden" id="cfg-panel">
+    <h3>Checklist por bloque</h3>
+    <div class="cfg-blocks" id="cfg-blocks"></div>
+  </div>
+  <div class="filtros-bar" id="filtros-bar" style="display:none;position:sticky;z-index:9;border-radius:0;margin-bottom:0;">
+    <datalist id="dl-cliente"></datalist>
+    <datalist id="dl-exportador"></datalist>
+    <datalist id="dl-piloto"></datalist>
+    <datalist id="dl-destino"></datalist>
+    <div class="filtro-item">
+      <label>🏢 Cliente</label>
+      <input id="f-cliente" list="dl-cliente" placeholder="Escribí para buscar…"
+        oninput="onFiltroInput(this,'cliente')"
+        onkeydown="if(event.key==='Enter'){aplicarFiltro('cliente',this.value.trim());this.blur();}"
+        onchange="aplicarFiltro('cliente',this.value.trim())"
+        style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;width:100%;"/>
+    </div>
+    <div class="filtro-item">
+      <label>🏭 Exportador</label>
+      <input id="f-exportador" list="dl-exportador" placeholder="Escribí para buscar…"
+        oninput="onFiltroInput(this,'exportador')"
+        onkeydown="if(event.key==='Enter'){aplicarFiltro('exportador',this.value.trim());this.blur();}"
+        onchange="aplicarFiltro('exportador',this.value.trim())"
+        style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;width:100%;"/>
+    </div>
+    <div class="filtro-item">
+      <label>🧑‍✈️ Piloto</label>
+      <input id="f-piloto" list="dl-piloto" placeholder="Escribí para buscar…"
+        oninput="onFiltroInput(this,'piloto')"
+        onkeydown="if(event.key==='Enter'){aplicarFiltro('piloto',this.value.trim());this.blur();}"
+        onchange="aplicarFiltro('piloto',this.value.trim())"
+        style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;width:100%;"/>
+    </div>
+    <div class="filtro-item">
+      <label>📍 Destino</label>
+      <input id="f-destino" list="dl-destino" placeholder="Escribí para buscar…"
+        oninput="onFiltroInput(this,'destino')"
+        onkeydown="if(event.key==='Enter'){aplicarFiltro('destino',this.value.trim());this.blur();}"
+        onchange="aplicarFiltro('destino',this.value.trim())"
+        style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;width:100%;"/>
+    </div>
+    <div class="filtro-item">
+      <label>📅 Fecha de carga</label>
+      <input type="date" id="f-fecha" onchange="aplicarFiltro('fecha',this.value)"/>
+    </div>
+    <span class="filtros-count" id="filtros-count"></span>
+    <button class="filtro-clear" onclick="limpiarFiltros()">✕ Limpiar</button>
+  </div>
+  <div id="viaje-sel-bar" style="display:none;position:sticky;top:131px;z-index:10;border-radius:0;margin-bottom:0;" class="viaje-sel-bar">
+    <span class="viaje-sel-label">Viaje seleccionado:</span>
+    <span id="viaje-sel-id" class="viaje-sel-id"></span>
+    <span id="viaje-sel-info" class="viaje-sel-info"></span>
+    <div style="flex:1;"></div>
+    <button class="btn-sel" style="background:#f5f3ff;border-color:#c4b5fd;color:#7c3aed;" onclick="accionViaje('copiar')">⧉ Copiar</button>
+    <button class="btn-sel" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;" onclick="accionViaje('devolver')">↩ Devolver</button>
+    <button class="btn-sel" style="background:#dcfce7;border-color:#86efac;color:#15803d;font-weight:800;" onclick="accionViaje('avanzar')">→ Avanzar</button>
+    <button class="btn-sel" style="background:#f0fdf4;border-color:#86efac;color:#15803d;" onclick="accionViaje('pedir')">📋 Pedir</button>
+    <button class="btn-sel" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;" onclick="accionViaje('notas')">! Notas</button>
+    <button class="btn-sel" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;" onclick="accionViaje('finanzas')">💰 Precio</button>
+    <button class="btn-sel" style="background:#fee2e2;border-color:#fca5a5;color:#dc2626;" onclick="accionViaje('eliminar')">✕ Eliminar</button>
+    <div style="width:1px;background:rgba(255,255,255,0.15);height:22px;"></div>
+    <button class="btn-sel" style="background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);color:#94a3b8;" onclick="seleccionarViaje(null)">✕ Deseleccionar</button>
+  </div>
+  <div id="board"></div>
+</div>
+
+<!-- PANTALLA PILOTOS -->
+<div id="pilotos-freeze" style="display:none;position:sticky;top:93px;z-index:12;">
+  <div id="pilotos-freeze-header"></div>
+  <div id="pilotos-freeze-thead"></div>
+</div>
+<div id="screen-pilotos" class="main" style="display:none;padding-top:0;">
+  <div id="pilotos-board"></div>
+</div>
+
+<!-- PANTALLA RESUMEN -->
+<div id="resumen-freeze" style="display:none;position:sticky;top:133px;z-index:12;">
+  <div id="resumen-freeze-header"></div>
+  <div id="resumen-freeze-cols" style="overflow-x:hidden;"></div>
+</div>
+<div id="screen-resumen" class="main" style="display:none;padding-top:0;">
+  <div id="resumen-board"></div>
+</div>
+
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+<div id="toast-sync" style="position:fixed;top:20px;right:20px;background:#1e293b;color:#86efac;padding:7px 14px;border-radius:8px;font-size:12px;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;">☁️</div>
+
+<script>
+// ── SUPABASE ─────────────────────────────────────────────────
+const SUPABASE_URL = 'https://yigffvubokdxwcusofrp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_R-NiNYqKajpwh-_kqlYzgg_i601S6zd';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let syncTimeout = null;
+let ultimaActualizacion = null;
+
+async function cargarDesdeSupabase() {
+  try {
+    const { data, error } = await sb.from('estado').select('*').eq('id','singleton').single();
+    if (error) { console.error('Error cargando:', error); return; }
+    if (!data) return;
+    if (data.trips)        trips      = data.trips;
+    if (data.pilotos)      pilotos    = data.pilotos;
+    if (data.archivados)   archivados = data.archivados;
+    if (data.resumen_extra) resumenExtra = data.resumen_extra;
+    if (data.stages && Object.keys(data.stages).length) stages = data.stages;
+    ultimaActualizacion = data.updated_at;
+    renderBoard();
+    renderPilotos();
+    actualizarBadgeArchivados();
+    mostrarToastSync('☁️ Datos cargados');
+  } catch(e) { console.error('Error Supabase:', e); }
+}
+
+async function guardarEnSupabase() {
+  try {
+    const { error } = await sb.from('estado').upsert({
+      id: 'singleton',
+      trips,
+      pilotos,
+      archivados,
+      resumen_extra: resumenExtra,
+      stages,
+      updated_at: new Date().toISOString()
+    });
+    if (error) console.error('Error guardando:', error);
+    else mostrarToastSync('☁️ Guardado en la nube');
+  } catch(e) { console.error('Error Supabase:', e); }
+}
+
+function scheduleSave() {
+  // Guardar 2 segundos después del último cambio
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => guardarEnSupabase(), 2000);
+}
+
+function mostrarToastSync(msg) {
+  const el = document.getElementById('toast-sync');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 2000);
+}
+
+// Escuchar cambios en tiempo real de otros dispositivos
+function iniciarRealtime() {
+  sb.channel('estado-changes')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'estado' }, async (payload) => {
+      // Solo actualizar si el cambio viene de otro dispositivo
+      if (payload.new.updated_at !== ultimaActualizacion) {
+        if (payload.new.trips)        trips      = payload.new.trips;
+        if (payload.new.pilotos)      pilotos    = payload.new.pilotos;
+        if (payload.new.archivados)   archivados = payload.new.archivados;
+        if (payload.new.resumen_extra) resumenExtra = payload.new.resumen_extra;
+        if (payload.new.stages && Object.keys(payload.new.stages).length) stages = payload.new.stages;
+        ultimaActualizacion = payload.new.updated_at;
+        renderBoard();
+        renderPilotos();
+        actualizarBadgeArchivados();
+        mostrarToastSync('🔄 Actualizado desde otro dispositivo');
+      }
+    })
+    .subscribe();
+}
+
+const BLOCKS = [
+  { key:'solicitud',   label:'Solicitud',    icon:'📝', cls:'solicitud'   },
+  { key:'precarga',    label:'Pre carga',    icon:'📋', cls:'precarga'    },
+  { key:'pretransito', label:'En carga',     icon:'📦', cls:'pretransito' },
+  { key:'despacho',    label:'En despacho',  icon:'🏁', cls:'despacho'    },
+  { key:'transito',    label:'Tránsito',     icon:'🚛', cls:'transito'    }
+];
+
+let stages = {
+  solicitud:   ['Asignado','Solicitud de orden','Enviado','Revisado'],
+  precarga:    ['Documentación','Confirmación cliente','Asignación unidad','Asignación operador','Inspección unidad'],
+  pretransito: ['Carga completada','Verificación sellos','Permisos fronterizos','Ruta confirmada'],
+  despacho:    ['Documentos entregados'],
+  transito:    ['En ruta','Cruce frontera','Punto control 1','Punto control 2','Entrega final']
+};
+
+let trips = [];
+let editando = { field: null, ti: null };
+let filtros = { cliente:'', exportador:'', piloto:'', destino:'', fecha:'' };
+let viajeSeleccionado = null; // índice del viaje seleccionado
+// Mapa persistente de colores por cliente — nunca cambia una vez asignado
+const clientColorPalette = [
+  '#dbeafe','#d1fae5','#fef3c7','#ede9fe','#fee2e2','#ccfbf1',
+  '#ffedd5','#cffafe','#fae8ff','#dcfce7','#fef9c3','#e0f2fe',
+  '#f1f0ff','#fce7f3','#ecfdf5','#fce7f3','#e0f2fe','#fef9c3',
+];
+const clientColorMap = {}; // { 'linc': '#dbeafe', ... }
+let colorIndex = 0;
+
+function getClientColor(nombre) {
+  const key = (nombre||'').toLowerCase().trim();
+  if (!key) return 'transparent';
+  if (!clientColorMap[key]) {
+    clientColorMap[key] = clientColorPalette[colorIndex % clientColorPalette.length];
+    colorIndex++;
+  }
+  return clientColorMap[key];
+}
+// resumenExtra: datos adicionales por viaje (indexados por trip.id)
+// { oc, placa, transportista, nacionalidad, fechaColocacion }
+let resumenExtra = {};
+let archivados = []; // viajes completados (salieron de Tránsito) // field: 'cliente','exportador','piloto','destino','lugarCarga','fechaCarga','horaCarga','pies','id'
+let exportado = false;
+
+document.getElementById('fecha-hdr').textContent =
+  new Date().toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function pct(arr) { return arr.length ? Math.round(arr.filter(Boolean).length/arr.length*100) : 0; }
+
+function sync(t) {
+  BLOCKS.forEach(b=>{
+    if (!t.checks[b.key]) t.checks[b.key]=[];
+    while(t.checks[b.key].length < stages[b.key].length) t.checks[b.key].push(0);
+    t.checks[b.key].length = stages[b.key].length;
+  });
+}
+
+// Returns the key of the block where the trip currently is active
+function activeBlock(t) {
+  sync(t);
+  for (const b of BLOCKS) {
+    const allDone = t.checks[b.key].length > 0 && t.checks[b.key].every(Boolean);
+    if (!allDone) return b.key;
+  }
+  return BLOCKS[BLOCKS.length-1].key; // all done, stays in last
+}
+
+const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+function parseFecha(val) {
+  if (!val || val === '') return '';
+  let d;
+  if (!isNaN(val) && Number(val) > 1000) {
+    d = new Date(Math.round((Number(val) - 25569) * 86400 * 1000));
+  } else if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [y,m,dy] = val.split('-');
+    d = new Date(Number(y), Number(m)-1, Number(dy));
+  } else if (typeof val === 'string' && val.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/)) {
+    const parts = val.split(/[\/\-]/);
+    d = new Date(Number(parts[2]), Number(parts[1])-1, Number(parts[0]));
+  } else {
+    return String(val);
+  }
+  const dia = DIAS[d.getDay()];
+  const fecha = d.toLocaleDateString('es-CR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  return `${dia} ${fecha}`;
+}
+function parseHora(val) {
+  if (!val || val === '') return '';
+  if (!isNaN(val) && Number(val) > 0 && Number(val) < 1) {
+    const totalMin = Math.round(Number(val)*1440);
+    return `${Math.floor(totalMin/60).toString().padStart(2,'0')}h`;
+  }
+  // HH:MM string -> show only hour
+  const str = String(val);
+  if (str.includes(':')) return str.split(':')[0] + 'h';
+  return str;
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+
+  // Actualizar opciones de los selects con valores únicos
+  actualizarSelectsFiltros();
+
+  if (!trips.length) {
+    board.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px;">No hay viajes. Importá un Excel o presioná "+ Nueva solicitud".</div>';
+    return;
+  }
+
+  // Aplicar filtros activos
+  const tripsFiltrados = trips.filter(t => {
+    if (filtros.cliente    && !(t.cliente   ||'').trim().toLowerCase().includes(filtros.cliente.trim().toLowerCase()))    return false;
+    if (filtros.exportador && !(t.exportador||'').trim().toLowerCase().includes(filtros.exportador.trim().toLowerCase())) return false;
+    if (filtros.piloto     && !(t.piloto    ||'').trim().toLowerCase().includes(filtros.piloto.trim().toLowerCase()))     return false;
+    if (filtros.destino    && !(t.destino   ||'').trim().toLowerCase().includes(filtros.destino.trim().toLowerCase()))    return false;
+    if (filtros.fecha && filtros.fecha !== '') {
+      // Normalizar fecha del viaje a YYYY-MM-DD para comparar
+      const raw = String(t.fechaCarga||'');
+      let fISO = raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        fISO = raw;
+      } else {
+        const clean = raw.replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/,'');
+        const mx = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (mx) fISO = mx[3]+'-'+mx[2].padStart(2,'0')+'-'+mx[1].padStart(2,'0');
+      }
+      if (fISO !== filtros.fecha) return false;
+    }
+    return true;
+  });
+
+  // Actualizar contador
+  const hayFiltros = Object.values(filtros).some(v=>v);
+  const countEl = document.getElementById('filtros-count');
+  if (countEl) {
+    if (hayFiltros) countEl.textContent = `${tripsFiltrados.length} de ${trips.length} viajes`;
+    else countEl.textContent = '';
+  }
+
+  if (hayFiltros && !tripsFiltrados.length) {
+    board.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:13px;">Ningún viaje coincide con los filtros aplicados.</div>';
+    return;
+  }
+
+  // Índices reales para edición (usar trips original, no filtrado)
+  const tripsBase = hayFiltros ? tripsFiltrados : trips;
+
+  // Registrar colores para todos los clientes actuales (persiste entre renders)
+  trips.forEach(t => getClientColor(t.cliente));
+
+  board.innerHTML = BLOCKS.map(b => {
+    // Trips that belong to this block
+    const blockTrips = tripsBase
+      .map(t=>({t, ti:trips.indexOf(t)}))
+      .filter(({t})=> activeBlock(t) === b.key)
+      .sort((a,b) => {
+        const ca = (a.t.cliente||'').toLowerCase();
+        const cb = (b.t.cliente||'').toLowerCase();
+        if (ca < cb) return -1;
+        if (ca > cb) return 1;
+        // Same client: sort by date
+        const fa = String(a.t.fechaCarga||'');
+        const fb = String(b.t.fechaCarga||'');
+        // Parse DD/MM/YYYY to comparable string YYYY-MM-DD
+        function toISO(s){ const m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/); return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:s; }
+        return toISO(fa).localeCompare(toISO(fb));
+      });
+
+    // Los colores por cliente son persistentes (manejados por getClientColor)
+
+    const rows = blockTrips.map(({t,ti}) => {
+      sync(t);
+
+      // Build flat checks for sequential lock
+      const flat = BLOCKS.flatMap(bl => t.checks[bl.key]);
+      let globalStart = 0;
+      for (const bl of BLOCKS) {
+        if (bl.key === b.key) break;
+        globalStart += stages[bl.key].length;
+      }
+
+      const stageCount = stages[b.key].length;
+      const pillStyle = stageCount <= 3
+        ? 'font-size:13px;padding:8px 18px'
+        : stageCount <= 5
+          ? 'font-size:12px;padding:6px 14px'
+          : stageCount <= 7
+            ? 'font-size:11px;padding:4px 11px'
+            : 'font-size:10px;padding:3px 8px';
+      const pills = stages[b.key].map((s,si) => {
+        const gIdx = globalStart + si;
+        const done = flat[gIdx];
+        const locked = !done && gIdx > 0 && !flat[gIdx-1];
+        return `<span class="pill${done?' done':''}${locked?' locked':''}"
+          style="${pillStyle}"
+          onclick="toggle(${ti},'${b.key}',${si})"
+          title="${locked?'Completá la etapa anterior primero':''}">${locked?'🔒 ':''}${s}</span>`;
+      }).join('');
+
+      // Piloto editable
+      let pilotoHtml;
+      if (editando.piloto === ti) {
+        pilotoHtml = `<div class="irow"><span class="iico">🧑‍✈️</span>
+          <input class="inline-input" id="piloto-inp-${ti}" value="${t.piloto||''}" placeholder="Nombre del piloto"
+            onkeydown="if(event.key==='Enter')guardarPiloto(${ti});if(event.key==='Escape')cancelarEdit();"
+            onblur="guardarPiloto(${ti})" /></div>`;
+      } else if (t.piloto) {
+        pilotoHtml = `<div class="irow editable-wrap"><span class="iico">🧑‍✈️</span>
+          <span class="ival">${t.piloto}</span>
+          <button class="edit-btn" onclick="editarPiloto(${ti})">✏</button></div>`;
+      } else {
+        pilotoHtml = `<div class="irow editable-wrap"><span class="iico">🧑‍✈️</span>
+          <span class="ival no-piloto">Sin piloto</span>
+          <button class="edit-btn" onclick="editarPiloto(${ti})">+ asignar</button></div>`;
+      }
+
+      // N° viaje editable
+      let vidHtml;
+      if (editando.vid === ti) {
+        vidHtml = `<div class="vid-wrap"><input class="vid-input" id="vid-inp-${ti}" value="${t.id}"
+          onkeydown="if(event.key==='Enter')guardarVid(${ti});if(event.key==='Escape')cancelarEdit();"
+          onblur="guardarVid(${ti})" /></div>`;
+      } else {
+        vidHtml = `<div class="vid-wrap"><span class="ival vid">${t.id}</span>
+          <button class="vid-edit-btn" onclick="editarVid(${ti})">✏</button></div>`;
+      }
+
+      const rowColor = getClientColor(t.cliente);
+
+      function ef(field, ico, val, placeholder, extraClass='', inputType='text') {
+        const isEditing = editando.field === field && editando.ti === ti;
+        if (isEditing) {
+          return `<div class="irow"><span class="iico">${ico}</span>
+            <input class="field-input" id="edit-inp-${ti}-${field}" type="${inputType}" value="${val||''}" placeholder="${placeholder}"
+              onkeydown="if(event.key==='Enter')guardarCampo(${ti},'${field}');if(event.key==='Escape')cancelarEdit();"
+              onblur="guardarCampo(${ti},'${field}')" /></div>`;
+        }
+        return `<div class="irow editable-wrap"><span class="iico">${ico}</span>
+          <span class="ival ${extraClass}">${val||'<em style=\'color:#94a3b8;font-style:italic;font-size:11px\'>—</em>'}</span>
+          <button class="edit-btn" onclick="editarCampo(${ti},'${field}')">✏</button></div>`;
+      }
+
+      const fechaStr  = parseFecha(t.fechaCarga);
+      const horaStr   = parseHora(t.horaCarga);
+
+      // Flecha de urgencia según días a la fecha de carga
+      let flechaBadge = '';
+      if (t.fechaCarga) {
+        // Parsear fechaCarga a Date (soporta YYYY-MM-DD y DD/MM/YYYY)
+        let dCarga;
+        const raw = String(t.fechaCarga);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+          const [y,m,d] = raw.split('-');
+          dCarga = new Date(Number(y), Number(m)-1, Number(d));
+        } else {
+          const m2 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (m2) dCarga = new Date(Number(m2[3]), Number(m2[2])-1, Number(m2[1]));
+        }
+        if (dCarga) {
+          const hoy   = new Date(); hoy.setHours(0,0,0,0); dCarga.setHours(0,0,0,0);
+          const dias  = Math.round((dCarga - hoy) / 86400000);
+          if (dias === 0)       flechaBadge = '<span title="Viaje HOY"  style="font-size:16px;line-height:1;">🔴</span>';
+          else if (dias === 1)  flechaBadge = '<span title="Viaje mañana" style="font-size:16px;line-height:1;">🟡</span>';
+          else if (dias === 2)  flechaBadge = '<span title="Viaje en 2 días" style="font-size:16px;line-height:1;">🟢</span>';
+        }
+      }
+
+      // Finanzas — parsear correctamente incluyendo strings con $ o comas
+      const venta   = parseMonto(t.venta);
+      const costo   = parseMonto(t.costo);
+      const adelanto= parseMonto(t.adelanto);
+      const util    = venta - costo;
+      const tieneFinanzas = venta || costo || adelanto;
+      let utilBadge = '';
+      if (tieneFinanzas) {
+        const uColor  = util > 0 ? '#15803d' : util < 0 ? '#dc2626' : '#64748b';
+        const uBg     = util > 0 ? '#dcfce7' : util < 0 ? '#fee2e2' : '#f1f5f9';
+        const uBorder = util > 0 ? '#86efac' : util < 0 ? '#fca5a5' : '#e2e8f0';
+        const signo   = util >= 0 ? '+' : '';
+        utilBadge = `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${uBg};color:${uColor};border:1.5px solid ${uBorder};cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" onclick="verFinanzas(${ti})" title="Ver detalle financiero">💰 ${signo}$${util.toFixed(2)}</span>`;
+      } else {
+        utilBadge = `<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;background:#fef9c3;color:#a16207;border:1.5px dashed #fcd34d;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" onclick="verFinanzas(${ti})" title="Agregar datos financieros">💰 Sin precio</span>`;
+      }
+
+      return `
+      <div class="trip-row" style="background:${rowColor}">
+        <div class="cell-info">
+          <div class="irow" style="align-items:center;gap:5px;">
+            ${flechaBadge}
+            ${ef('numInterno', '🔢', t.numInterno, 'N° interno')}
+            ${t.notas ? `<span onclick="verNotas(${ti})" title="Ver notas" style="cursor:pointer;font-size:15px;font-weight:900;color:white;background:#f59e0b;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 4px rgba(245,158,11,0.5);">!</span>` : ''}
+          </div>
+          ${ef('exportador', '🏭', t.exportador, 'Exportador')}
+          ${ef('piloto',     '🧑‍✈️', t.piloto,     'Piloto')}
+          ${ef('cliente',    '🏢', t.cliente,    'Cliente')}
+          ${ef('lugarCarga', '📦', t.lugarCarga, 'Lugar de carga')}
+          ${ef('id',         '#',  t.id,         'N° viaje', 'vid')}
+          ${ef('destino',    '📍', t.destino,    'Destino', 'dest')}
+          ${ef('fechaCarga', '📅', fechaStr,     'Fecha', '', 'date')}
+          ${ef('horaCarga',  '🕐', horaStr,      'Hora',  '', 'time')}
+          <div class="irow">${utilBadge}</div>
+          ${ef('pies',       '🚛', t.pies ? t.pies+' pies' : '', 'Pies de caja')}
+        </div>
+        <div class="cell-pills ${b.cls}-pills">${pills}</div>
+        <div class="cell-actions" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+          <button onclick="seleccionarViaje(${ti})" id="sel-btn-${ti}"
+            title="Seleccionar viaje"
+            style="background:${viajeSeleccionado===ti?'#6366f1':'#f1f5f9'};border:2px solid ${viajeSeleccionado===ti?'#6366f1':'#e2e8f0'};color:${viajeSeleccionado===ti?'white':'#94a3b8'};font-size:13px;font-weight:900;cursor:pointer;padding:6px 10px;border-radius:8px;font-family:inherit;line-height:1;transition:all 0.15s;">
+            ${viajeSeleccionado===ti?'✦':'○'}
+          </button>
+          ${BLOCKS.findIndex(bl=>bl.key===b.key) < BLOCKS.length - 1 ? `<button onclick="avanzarViaje(${ti})" title="Avanzar al siguiente bloque"
+            style="background:#15803d;border:2px solid #15803d;color:white;font-size:14px;font-weight:900;cursor:pointer;padding:6px 10px;border-radius:8px;font-family:inherit;line-height:1;transition:opacity 0.15s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1">
+            →
+          </button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="block-section">
+      <div class="block-header ${b.cls}">
+        <div class="block-dot"></div>
+        <span class="block-title">${b.icon} ${b.label}</span>
+        <span class="block-count">${blockTrips.length} viaje${blockTrips.length!==1?'s':''}</span>
+      </div>
+      ${rows || '<div class="block-empty">No hay viajes en este bloque</div>'}
+    </div>`;
+  }).join('');
+
+  // Focus active editable
+  if (editando.field !== null && editando.ti !== null) {
+    const inp = document.getElementById('edit-inp-'+editando.ti+'-'+editando.field);
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
+function toggle(ti, key, si) {
+  const t = trips[ti];
+  sync(t);
+  const flat = BLOCKS.flatMap(b => t.checks[b.key]);
+  let gIdx = 0;
+  for (const bl of BLOCKS) {
+    if (bl.key === key) { gIdx += si; break; }
+    gIdx += stages[bl.key].length;
+  }
+  const isChecked = flat[gIdx];
+  if (!isChecked) {
+    if (gIdx > 0 && !flat[gIdx-1]) { toast('⚠ Completá la etapa anterior primero'); return; }
+  } else {
+    for (let g = gIdx+1; g < flat.length; g++) {
+      if (flat[g]) { toast('⚠ Desmarcá las etapas posteriores primero'); return; }
+    }
+  }
+  t.checks[key][si] = isChecked ? 0 : 1;
+  exportado = false; scheduleSave();
+
+  // Disparar tarjeta WA al marcar "Solicitud de orden" (si=1 en bloque solicitud)
+  if (key === 'solicitud' && si === 1 && !isChecked) {
+    renderBoard();
+    setTimeout(() => mostrarTarjetaWA(ti), 50);
+    return;
+  }
+
+  // Detectar si se completó la última etapa de Tránsito
+  if (key === 'transito' && si === stages.transito.length - 1 && !isChecked) {
+    // Verificar que TODAS las etapas estén completas
+    const todasCompletas = BLOCKS.every(b => t.checks[b.key].every(v => v === 1));
+    if (todasCompletas) {
+      setTimeout(() => archivarViaje(ti), 100);
+      return;
+    }
+  }
+
+  renderBoard();
+}
+
+function archivarViaje(ti) {
+  const t = trips[ti];
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay">
+    <div class="modal" style="width:420px;text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">🏁</div>
+      <h2 style="margin-bottom:6px;">¡Viaje completado!</h2>
+      <p class="modal-sub" style="margin-bottom:16px;">${t.id} — ${t.cliente||''} · ${t.destino||''}</p>
+      <p style="font-size:13px;color:#374151;margin-bottom:20px;">
+        Este viaje completó todas las etapas de Tránsito.<br>
+        Se moverá al archivo y saldrá del tablero activo.
+      </p>
+      <div class="m-actions" style="justify-content:center;gap:12px;">
+        <button class="m-cancel" onclick="closeModal();renderBoard();">Cancelar</button>
+        <button class="m-save" onclick="confirmarArchivo(${ti})">🗂 Archivar viaje</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function confirmarArchivo(ti) {
+  const t = trips[ti];
+  archivados.push({ ...t, fechaArchivo: new Date().toISOString().slice(0,10) });
+  trips.splice(ti, 1);
+  exportado = false; scheduleSave();
+  closeModal();
+  renderBoard();
+  toast(`🗂 Viaje ${t.id} archivado`);
+  // Actualizar badge archivados en el menú
+  actualizarBadgeArchivados();
+}
+
+function actualizarBadgeArchivados() {
+  const badge = document.getElementById('badge-archivados');
+  if (!badge) return;
+  if (archivados.length) { badge.style.display='inline'; badge.textContent=archivados.length; }
+  else badge.style.display='none';
+}
+
+function exportarArchivados() {
+  if (!archivados.length) { toast('No hay viajes archivados'); return; }
+  const header = ['N° Interno','N° Viaje','Fecha Archivo','Cliente','Exportador','Destino','Lugar Carga',
+    'Piloto','Fecha Carga','Hora Carga','Pies','Precio Venta','Precio Costo','Utilidad','Adelanto','Notas'];
+  const rows = archivados.map(t => {
+    const v = parseMonto(t.venta), co = parseMonto(t.costo);
+    return [t.numInterno||'', t.id, t.fechaArchivo||'', t.cliente||'', t.exportador||'',
+      t.destino||'', t.lugarCarga||'', t.piloto||'',
+      parseFecha(t.fechaCarga)||'', t.horaCarga||'', t.pies||'',
+      v||'', co||'', v&&co ? v-co : '', parseMonto(t.adelanto)||'', t.notas||''];
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header,...rows]), 'Archivados');
+  XLSX.writeFile(wb, 'viajes_archivados_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('✅ Archivados exportados');
+}
+
+function verArchivados() {
+  if (!archivados.length) { toast('No hay viajes archivados aún'); return; }
+  const rows = archivados.map((t,i) => {
+    const v=parseMonto(t.venta),co=parseMonto(t.costo),util=v-co;
+    const uColor=util>0?'#15803d':util<0?'#dc2626':'#64748b';
+    return `<tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:6px 10px;font-size:11px;color:#94a3b8;">${t.fechaArchivo||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:#7c3aed;">${t.numInterno||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:600;">${t.id}</td>
+      <td style="padding:6px 10px;font-size:12px;">${t.cliente||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;">${t.exportador||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;color:#2563eb;font-weight:500;">${t.destino||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;">${t.piloto||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${uColor};">${v||co?(util>=0?'+':'')+'$'+util.toFixed(2):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay">
+    <div class="modal" style="width:780px;max-width:96vw;">
+      <h2>🗂 Viajes archivados <span style="font-size:13px;font-weight:400;color:#94a3b8;">(${archivados.length})</span></h2>
+      <div style="overflow:auto;max-height:55vh;margin-top:12px;border:1px solid #e2e8f0;border-radius:8px;">
+        <table style="width:100%;border-collapse:collapse;min-width:650px;">
+          <thead style="position:sticky;top:0;background:#f8fafc;z-index:2;">
+            <tr>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Archivado</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">N° int</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">N° viaje</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Cliente</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Exportador</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Destino</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Piloto</th>
+              <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Utilidad</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="m-actions" style="margin-top:12px;">
+        <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+        <button class="m-save" onclick="exportarArchivados()">⬇ Exportar Excel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function verNotas(ti) {
+  const t = trips[ti];
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal" style="width:420px;">
+      <h2 style="display:flex;align-items:center;gap:8px;">
+        <span style="background:#f59e0b;color:white;border-radius:50%;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;">!</span>
+        Notas — ${t.id||''}
+      </h2>
+      <p class="modal-sub">${t.cliente||''} · ${t.exportador||''}</p>
+      <textarea id="notas-edit" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:120px;margin-top:10px;color:#1a1a2e;">${t.notas||''}</textarea>
+      <div class="m-actions" style="margin-top:12px;">
+        <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+        <button class="m-save" onclick="guardarNotas(${ti})">Guardar notas</button>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>document.getElementById('notas-edit')?.focus(),50);
+}
+
+function guardarNotas(ti) {
+  const val = document.getElementById('notas-edit')?.value.trim()||'';
+  trips[ti].notas = val;
+  exportado = false; scheduleSave();
+  closeModal();
+  renderBoard();
+  toast(val ? '✅ Notas guardadas' : 'Notas borradas');
+}
+
+function marcarSolicitud(ti, si, valor) {
+  if (!trips[ti]) return;
+  sync(trips[ti]);
+  trips[ti].checks['solicitud'][si] = valor;
+  exportado = false; scheduleSave();
+}
+
+function mostrarTarjetaWA(ti) {
+  const t = trips[ti];
+  const fechaStr = parseFecha(t.fechaCarga);
+  const horaStr  = parseHora(t.horaCarga);
+  // Pre-cargar montos existentes del viaje
+  const vPre = parseMonto(t.venta)   || '';
+  const cPre = parseMonto(t.costo)   || '';
+  const aPre = parseMonto(t.adelanto)|| '';
+
+  function buildMsg(v,c,a) {
+    const lineas = [];
+    if (v) lineas.push('💰 *Venta:*    $' + Number(v).toFixed(2));
+    if (c) lineas.push('💸 *Costo:*    $' + Number(c).toFixed(2));
+    if (a) lineas.push('💵 *Adelanto:* $' + Number(a).toFixed(2));
+    const bloque = lineas.length ? '\n━━━━━━━━━━━━━━━━━━━\n' + lineas.join('\n') : '';
+    return [
+      '🚛 *TIGSA — Asignación de Viaje*',
+      '━━━━━━━━━━━━━━━━━━━',
+      '📋 *N° Viaje:* '       + (t.id         || '—'),
+      '🏢 *Cliente:* '        + (t.cliente    || '—'),
+      '🏭 *Exportador:* '     + (t.exportador || '—'),
+      '📍 *Destino:* '        + (t.destino    || '—'),
+      '📦 *Lugar de carga:* ' + (t.lugarCarga || '—'),
+      '📅 *Fecha de carga:* ' + (fechaStr     || '—'),
+      '🕐 *Hora de carga:* '  + (horaStr      || '—'),
+      '🚛 *Pies de caja:* '   + (t.pies       || '—'),
+      '🧑‍✈️ *Piloto:* '   + (t.piloto     || 'Por asignar'),
+    ].join('\n') + bloque + '\n━━━━━━━━━━━━━━━━━━━';
+  }
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal" style="width:480px;">
+      <h2>📲 Tarjeta de asignación</h2>
+      <p class="modal-sub">Los montos se guardan en el viaje automáticamente</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div class="fg" style="flex:1;margin:0"><label>💰 Venta</label>
+          <input id="wa-venta" type="number" step="0.01" value="${vPre}" placeholder="0.00"
+            oninput="actualizarTarjeta(${ti});guardarMontoWA(${ti})"/></div>
+        <div class="fg" style="flex:1;margin:0"><label>💸 Costo</label>
+          <input id="wa-costo" type="number" step="0.01" value="${cPre}" placeholder="0.00"
+            oninput="actualizarTarjeta(${ti});guardarMontoWA(${ti})"/></div>
+        <div class="fg" style="flex:1;margin:0"><label>💵 Adelanto</label>
+          <input id="wa-adelanto" type="number" step="0.01" value="${aPre}" placeholder="0.00"
+            oninput="actualizarTarjeta(${ti});guardarMontoWA(${ti})"/></div>
+      </div>
+      <textarea id="wa-msg" style="width:100%;height:200px;font-family:monospace;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;resize:none;color:#1a1a2e;" readonly></textarea>
+      <div class="m-actions">
+        <button class="m-cancel" onclick="cerrarTarjetaWA(${ti})">Cerrar</button>
+        <button class="m-save" onclick="navigator.clipboard.writeText(document.getElementById('wa-msg').value).then(()=>toast('✅ Copiado al portapapeles'))">📋 Copiar</button>
+      </div>
+    </div>
+  </div>`;
+  // Llenar el textarea con el mensaje inicial
+  setTimeout(()=>{
+    const ta = document.getElementById('wa-msg');
+    if(ta) ta.value = buildMsg(vPre, cPre, aPre);
+  }, 30);
+}
+
+function cerrarTarjetaWA(ti) {
+  closeModal();
+  // Al cerrar → marcar "Solicitud de orden" automáticamente (si=1)
+  marcarSolicitud(ti, 1, 1);
+  renderBoard();
+  toast('✅ Solicitud de orden marcada');
+}
+
+function guardarMontoWA(ti) {
+  trips[ti].venta   = document.getElementById('wa-venta')?.value  || '';
+  trips[ti].costo   = document.getElementById('wa-costo')?.value  || '';
+  trips[ti].adelanto= document.getElementById('wa-adelanto')?.value|| '';
+  exportado = false; scheduleSave();
+}
+
+function actualizarTarjeta(ti) {
+  const t = trips[ti];
+  const fechaStr = parseFecha(t.fechaCarga);
+  const horaStr  = parseHora(t.horaCarga);
+  const v = document.getElementById('wa-venta')?.value  || '';
+  const co= document.getElementById('wa-costo')?.value  || '';
+  const a = document.getElementById('wa-adelanto')?.value|| '';
+  const lineas = [];
+  if (v)  lineas.push('💰 *Venta:*    $' + Number(v).toFixed(2));
+  if (co) lineas.push('💸 *Costo:*    $' + Number(co).toFixed(2));
+  if (a)  lineas.push('💵 *Adelanto:* $' + Number(a).toFixed(2));
+  const bloque = lineas.length ? '\n━━━━━━━━━━━━━━━━━━━\n' + lineas.join('\n') : '';
+  const msg = [
+    '🚛 *TIGSA — Asignación de Viaje*',
+    '━━━━━━━━━━━━━━━━━━━',
+    '📋 *N° Viaje:* '       + (t.id         || '—'),
+    '🏢 *Cliente:* '        + (t.cliente    || '—'),
+    '🏭 *Exportador:* '     + (t.exportador || '—'),
+    '📍 *Destino:* '        + (t.destino    || '—'),
+    '📦 *Lugar de carga:* ' + (t.lugarCarga || '—'),
+    '📅 *Fecha de carga:* ' + (fechaStr     || '—'),
+    '🕐 *Hora de carga:* '  + (horaStr      || '—'),
+    '🚛 *Pies de caja:* '   + (t.pies       || '—'),
+    '🧑‍✈️ *Piloto:* '   + (t.piloto     || 'Por asignar'),
+  ].join('\n') + bloque + '\n━━━━━━━━━━━━━━━━━━━';
+  const ta = document.getElementById('wa-msg');
+  if (ta) ta.value = msg;
+}
+
+function editarCampo(ti, field) { editando={field,ti}; renderBoard(); }
+function guardarCampo(ti, field) {
+  const inp = document.getElementById('edit-inp-'+ti+'-'+field); if(!inp) return;
+  const valor = inp.value;
+  trips[ti][field] = valor;
+  // Si se edita el piloto: marcar o desmarcar "Asignado" automáticamente
+  if (field === 'piloto') {
+    marcarSolicitud(ti, 0, valor.trim() ? 1 : 0);
+    editando={field:null,ti:null}; exportado=false; scheduleSave();
+    renderBoard();
+    return;
+  }
+  editando={field:null,ti:null}; exportado=false; scheduleSave();
+  renderBoard();
+  toast('✅ Campo actualizado');
+}
+function cancelarEdit() { editando={field:null,ti:null}; renderBoard(); }
+
+// Keep old names as aliases for compatibility
+function editarPiloto(ti) { editarCampo(ti,'piloto'); }
+function guardarPiloto(ti) { guardarCampo(ti,'piloto'); }
+function editarVid(ti) { editarCampo(ti,'id'); }
+function guardarVid(ti) { guardarCampo(ti,'id'); }
+
+function deleteTrip(ti) {
+  if(confirm('¿Eliminar el viaje '+trips[ti].id+'?')){trips.splice(ti,1); exportado=false; scheduleSave(); renderBoard();}
+}
+
+// ── CONFIG ──────────────────────────────────────────────────
+const CFG_PIN = '1234';
+let cfgUnlocked = false;
+
+function toggleCfg() {
+  const p = document.getElementById('cfg-panel');
+  if (!p.classList.contains('hidden')) { p.classList.add('hidden'); return; }
+  p.classList.remove('hidden'); renderCfg();
+}
+function pinNext(el,nextId){if(el.value.length===1&&nextId)document.getElementById(nextId).focus();}
+function pinKey(e,el,prevId,nextId){if(e.key==='Backspace'&&!el.value&&prevId)document.getElementById(prevId).focus();if(e.key==='Enter')checkPin();}
+function checkPin(){
+  const pin=['pin1','pin2','pin3','pin4'].map(id=>document.getElementById(id)?.value||'').join('');
+  if(pin===CFG_PIN){cfgUnlocked=true;closeModal();document.getElementById('cfg-panel').classList.remove('hidden');renderCfg();toast('✅ Acceso concedido');}
+  else if(pin.length===4){document.getElementById('pin-error').textContent='PIN incorrecto.';['pin1','pin2','pin3','pin4'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});document.getElementById('pin1').focus();}
+}
+
+function moverStage(key,idx,dir){
+  const arr=stages[key]; const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=arr.length)return;
+  [arr[idx],arr[newIdx]]=[arr[newIdx],arr[idx]];
+  trips.forEach(t=>{if(t.checks[key]&&t.checks[key].length>newIdx)[t.checks[key][idx],t.checks[key][newIdx]]=[t.checks[key][newIdx],t.checks[key][idx]];});
+  renderCfg(); renderBoard();
+}
+
+function renderCfg(){
+  document.getElementById('cfg-blocks').innerHTML=BLOCKS.map(b=>{
+    const total=stages[b.key].length;
+    const items=stages[b.key].map((s,i)=>`
+      <div class="cfg-stage">
+        <div class="cfg-order">
+          <button class="ord-btn" onclick="moverStage('${b.key}',${i},-1)" ${i===0?'disabled':''}>▲</button>
+          <button class="ord-btn" onclick="moverStage('${b.key}',${i},1)"  ${i===total-1?'disabled':''}>▼</button>
+        </div>
+        <span>${s}</span>
+        <button class="cfg-remove" onclick="removeStage('${b.key}',${i})">×</button>
+      </div>`).join('');
+    return `<div class="cfg-block ${b.key}">
+      <div class="cfg-block-title">${b.label}</div>
+      <div class="cfg-stages-wrap">${items||'<span style="font-size:9px;color:#94a3b8">Sin etapas</span>'}</div>
+      <div class="cfg-add">
+        <input id="ci-${b.key}" type="text" placeholder="Nueva etapa..." onkeydown="if(event.key==='Enter')addStage('${b.key}')">
+        <button onclick="addStage('${b.key}')">+</button>
+      </div></div>`;
+  }).join('');
+}
+
+function addStage(key){
+  const inp=document.getElementById('ci-'+key); const val=inp.value.trim(); if(!val)return;
+  stages[key].push(val); trips.forEach(t=>t.checks[key].push(0));
+  renderCfg(); renderBoard();
+}
+function removeStage(key,idx){
+  stages[key].splice(idx,1); trips.forEach(t=>t.checks[key].splice(idx,1));
+  renderCfg(); renderBoard();
+}
+
+// ── EXCEL ───────────────────────────────────────────────────
+function descargarPlantilla(){
+  const wb=XLSX.utils.book_new();
+  const header=['N° Viaje','Cliente','Exportador','Destino','Lugar Carga','Piloto','Fecha Carga','Hora Carga','Pies de Caja',
+    ...stages.solicitud.map(s=>'SOL: '+s),...stages.precarga.map(s=>'PC: '+s),
+    ...stages.pretransito.map(s=>'PT: '+s),...stages.despacho.map(s=>'DESP: '+s),...stages.transito.map(s=>'TR: '+s)];
+  const ejemplo=['VJ-001','Importadora XYZ','Café Exports S.A.','San José, CR','','15/04/2026','08:00','53',
+    ...stages.solicitud.map(()=>0),...stages.precarga.map(()=>0),...stages.pretransito.map(()=>0),...stages.transito.map(()=>0)];
+  const ws=XLSX.utils.aoa_to_sheet([header,ejemplo]);
+  XLSX.utils.book_append_sheet(wb,ws,'Viajes');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['Fecha: DD/MM/AAAA como texto'],['Hora: HH:MM como texto'],['Piloto: opcional, se asigna desde el tablero'],
+    ['Etapas: 0=pendiente, 1=completado'],['SOL=Solicitud | PC=Pre carga | PT=Pre tránsito | TR=Tránsito']
+  ]),'Instrucciones');
+  XLSX.writeFile(wb,'plantilla_viajes.xlsx');
+  toast('✅ Plantilla descargada');
+}
+
+function importarArchivo(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const data = new Uint8Array(ev.target.result);
+      const wb   = XLSX.read(data,{type:'array',cellDates:false});
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+
+      // Read as array of arrays to avoid header encoding issues
+      const aoa = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(aoa.length < 2){toast('⚠ El archivo está vacío');return;}
+
+      const rawHeaders = aoa[0].map(h=>String(h||'').trim());
+
+      // Find column index by normalized name
+      function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+      function findCol(...names){
+        for(const n of names){
+          const nn=norm(n);
+          const i=rawHeaders.findIndex(h=>norm(h)===nn);
+          if(i>=0) return i;
+        }
+        return -1;
+      }
+      function getVal(row,idx){ return idx>=0 ? String(row[idx]||'').trim() : ''; }
+      function getInt(row,idx){ return idx>=0 ? (parseInt(row[idx])||0) : 0; }
+
+      // Map column indices once
+      const iId   = findCol('N° Viaje','N Viaje','Nviaje','Viaje','ID');
+      const iCli  = findCol('Cliente');
+      const iExp  = findCol('Exportador');
+      const iDest = findCol('Destino');
+      const iLug  = findCol('Lugar Carga','Lugar de Carga');
+      const iPil  = findCol('Piloto','Chofer');
+      const iFec  = findCol('Fecha Carga','Fecha carga');
+      const iHor  = findCol('Hora Carga','Hora carga');
+      const iPies = findCol('Pies de Caja','Pies de caja','Pies');
+      const iNI   = findCol('N° Interno','N Interno','Ninterno','numInterno','Interno');
+      const iVenta= findCol('Precio Venta','Venta','PrecioVenta');
+      const iCosto= findCol('Precio Costo','Costo','PrecioCosto');
+      const iAd   = findCol('Adelanto');
+      const iNotas= findCol('Notas','nota');
+
+      // ── 1. PRIMERO cargar las etapas del Excel (hoja Etapas) ──
+      const wsEtapas = wb.Sheets['Etapas'];
+      if (wsEtapas) {
+        const etapasAoa = XLSX.utils.sheet_to_json(wsEtapas,{header:1,defval:''});
+        const bloqueMap = {solicitud:'solicitud',precarga:'precarga',pretransito:'pretransito',transito:'transito'};
+        etapasAoa.slice(1).forEach(row => {
+          const key = String(row[0]||'').trim().toLowerCase();
+          if (bloqueMap[key]) {
+            const vals = row.slice(1).map(v=>String(v||'').trim()).filter(Boolean);
+            if (vals.length) stages[key] = vals;
+          }
+        });
+      }
+
+      // ── 2. DESPUÉS buscar columnas de checks con las etapas correctas ──
+      // Busca por prefijo SOL:/PC:/PT:/TR: en los headers
+      // También intenta buscar por nombre de etapa directamente si el prefijo falla
+      function findStageCol(prefix, stageName) {
+        // Busca "SOL: Asignado", "SOL:Asignado", o simplemente "Asignado" si hay ambigüedad
+        const withPrefix = findCol(prefix+' '+stageName, prefix+stageName);
+        if (withPrefix >= 0) return withPrefix;
+        return -1;
+      }
+
+      const iSol   = stages.solicitud.map(s=>findStageCol('SOL:',s));
+      const iPc    = stages.precarga.map(s=>findStageCol('PC:',s));
+      const iPt    = stages.pretransito.map(s=>findStageCol('PT:',s));
+      const iDesp  = stages.despacho.map(s=>findStageCol('DESP:',s));
+      const iTr    = stages.transito.map(s=>findStageCol('TR:',s));
+
+      // ¿El Excel tiene columnas de despacho?
+      const tieneDespacho = iDesp.some(i=>i>=0);
+
+      const dataRows = aoa.slice(1).filter(row=>row.some(c=>c!==''));
+
+      const nuevos = dataRows.map(row=>{
+        const id = getVal(row,iId)||'—';
+        const checksPreTransito = iPt.map(i=>getInt(row,i));
+        const checksTransito    = iTr.map(i=>getInt(row,i));
+
+        // Si el backup no tiene columna DESP, inferir:
+        // Si pretransito está todo en 1, poner despacho en 1 también
+        // (el viaje ya pasó por ese bloque antes de que existiera)
+        const pretransitoCompleto = checksPreTransito.every(v=>v===1);
+        const checksDespacho = iDesp.map(i=>{
+          if (i>=0) return getInt(row,i);
+          // Sin columna: asumir completado si pretransito ya estaba completo
+          return pretransitoCompleto ? 1 : 0;
+        });
+
+        const checks={
+          solicitud:   iSol.map(i=>getInt(row,i)),
+          precarga:    iPc.map(i=>getInt(row,i)),
+          pretransito: checksPreTransito,
+          despacho:    checksDespacho,
+          transito:    checksTransito,
+        };
+
+        let fechaCarga = getVal(row,iFec)
+          .replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/,''); // strip day name
+
+        let horaCarga = getVal(row,iHor).replace(/h$/i,'');
+        if(/^\d{1,2}$/.test(horaCarga)) horaCarga=horaCarga.padStart(2,'0')+':00';
+
+        return{id,checks,
+          numInterno: getVal(row,iNI),
+          cliente:    getVal(row,iCli),
+          exportador: getVal(row,iExp),
+          destino:    getVal(row,iDest),
+          lugarCarga: getVal(row,iLug),
+          piloto:     getVal(row,iPil).replace(/^(None|null|undefined)$/i,''),
+          fechaCarga, horaCarga,
+          pies:       getVal(row,iPies),
+          venta:      getVal(row,iVenta),
+          costo:      getVal(row,iCosto),
+          adelanto:   getVal(row,iAd),
+          notas:      getVal(row,iNotas),
+        };
+      }).filter(t=>t.id!=='—');
+
+      if(!nuevos.length){toast('⚠ No se encontraron viajes válidos');return;}
+      const reemplazar=trips.length?confirm(`Ya hay ${trips.length} viaje(s).\n¿Reemplazar todo? (Cancelar = agregar al final)`):true;
+      if(reemplazar)trips=nuevos;else trips=[...trips,...nuevos];
+
+      // Leer hoja Archivados si existe
+      const wsArch = wb.Sheets['Archivados'];
+      if (wsArch) {
+        const archAoa = XLSX.utils.sheet_to_json(wsArch,{header:1,defval:''});
+        if (archAoa.length > 1) {
+          const ah = archAoa[0].map(h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''));
+          function ac(...names){ for(const n of names){ const i=ah.findIndex(h=>h.includes(n)); if(i>=0)return i; } return -1; }
+          const aiNI=ac('interno'), aiId=ac('viaje','nviaje'), aiFArch=ac('archivo','fechaarch'),
+                aiCli=ac('cliente'), aiExp=ac('exportador'), aiDest=ac('destino'),
+                aiLug=ac('lugar'), aiPil=ac('piloto'), aiFec=ac('fechacarga','carga'),
+                aiHor=ac('hora'), aiPies=ac('pies'), aiV=ac('venta'), aiCo=ac('costo'),
+                aiAd=ac('adelanto'), aiNot=ac('notas');
+          const archNuevos = archAoa.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>({
+            numInterno: aiNI>=0?String(r[aiNI]||'').trim():'',
+            id:         aiId>=0?String(r[aiId]||'').trim():'—',
+            fechaArchivo: aiFArch>=0?String(r[aiFArch]||'').trim():'',
+            cliente:    aiCli>=0?String(r[aiCli]||'').trim():'',
+            exportador: aiExp>=0?String(r[aiExp]||'').trim():'',
+            destino:    aiDest>=0?String(r[aiDest]||'').trim():'',
+            lugarCarga: aiLug>=0?String(r[aiLug]||'').trim():'',
+            piloto:     aiPil>=0?String(r[aiPil]||'').trim():'',
+            fechaCarga: aiFec>=0?String(r[aiFec]||'').trim():'',
+            horaCarga:  aiHor>=0?String(r[aiHor]||'').trim():'',
+            pies:       aiPies>=0?String(r[aiPies]||'').trim():'',
+            venta:      aiV>=0?String(r[aiV]||'').trim():'',
+            costo:      aiCo>=0?String(r[aiCo]||'').trim():'',
+            adelanto:   aiAd>=0?String(r[aiAd]||'').trim():'',
+            notas:      aiNot>=0?String(r[aiNot]||'').trim():'',
+            checks:{ solicitud:stages.solicitud.map(()=>1), precarga:stages.precarga.map(()=>1),
+                     pretransito:stages.pretransito.map(()=>1), transito:stages.transito.map(()=>1) }
+          })).filter(t=>t.id!=='—');
+          if (archNuevos.length) {
+            archivados = archNuevos;
+            actualizarBadgeArchivados();
+          }
+        }
+      }
+
+      toast(`✅ ${nuevos.length} viaje(s)${wsEtapas?' + etapas':''}${wsArch?' + archivados':''} importados`);
+      renderBoard();
+      scheduleSave();
+    }catch(err){toast('❌ Error: '+err.message);console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);e.target.value='';}
+
+
+function exportarExcel(){
+  if(!trips.length){toast('⚠ No hay viajes para exportar');return;}
+  const header=['N° Interno','N° Viaje','Cliente','Exportador','Destino','Lugar Carga','Piloto','Fecha Carga','Hora Carga','Pies de Caja','Precio Venta','Precio Costo','Adelanto','Notas',
+    ...stages.solicitud.map(s=>'SOL: '+s),...stages.precarga.map(s=>'PC: '+s),
+    ...stages.pretransito.map(s=>'PT: '+s),...stages.despacho.map(s=>'DESP: '+s),...stages.transito.map(s=>'TR: '+s)];
+  const rows=trips.map(t=>{sync(t);return[t.numInterno||'',t.id,t.cliente,t.exportador,t.destino,t.lugarCarga||'',t.piloto,
+    t.fechaCarga||'',t.horaCarga||'',t.pies,
+    parseMonto(t.venta)||'',parseMonto(t.costo)||'',parseMonto(t.adelanto)||'',t.notas||'',
+    ...t.checks.solicitud,...t.checks.precarga,...t.checks.pretransito,...(t.checks.despacho||stages.despacho.map(()=>0)),...t.checks.transito];});
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+  XLSX.utils.book_append_sheet(wb,ws,'Viajes');
+  // Hoja de etapas
+  const etapasData=[
+    ['Bloque','Etapas'],
+    ['solicitud',  ...stages.solicitud],
+    ['precarga',   ...stages.precarga],
+    ['pretransito',...stages.pretransito],
+    ['transito',   ...stages.transito],
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(etapasData),'Etapas');
+  // Hoja de archivados
+  if (archivados.length) {
+    const archHdr = ['N° Interno','N° Viaje','Fecha Archivo','Cliente','Exportador','Destino','Lugar Carga',
+      'Piloto','Fecha Carga','Hora Carga','Pies','Precio Venta','Precio Costo','Adelanto','Notas'];
+    const archRows = archivados.map(t=>[t.numInterno||'',t.id,t.fechaArchivo||'',t.cliente||'',
+      t.exportador||'',t.destino||'',t.lugarCarga||'',t.piloto||'',
+      parseFecha(t.fechaCarga)||'',t.horaCarga||'',t.pies||'',
+      parseMonto(t.venta)||'',parseMonto(t.costo)||'',parseMonto(t.adelanto)||'',t.notas||'']);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([archHdr,...archRows]),'Archivados');
+  }
+  XLSX.writeFile(wb,`viajes_${new Date().toISOString().slice(0,10)}.xlsx`);
+  exportado=true; toast('✅ Estado exportado');
+}
+
+// ── MODAL NUEVO VIAJE ────────────────────────────────────────
+function openModal(){
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" >
+    <div class="modal">
+      <h2>Nueva solicitud de viaje</h2>
+      <p class="modal-sub">El piloto se puede asignar después desde el tablero</p>
+      <div class="sep">Información del viaje</div>
+      <div class="fg-row c2">
+        <div class="fg"><label>🏢 Cliente</label><input id="m-cl" placeholder="Nombre del cliente"/></div>
+        <div class="fg"><label>🏭 Exportador</label><input id="m-ex" placeholder="Nombre del exportador"/></div>
+      </div>
+      <div class="fg-row c2">
+        <div class="fg"><label>📍 Destino</label><input id="m-dest" placeholder="Ciudad, País"/></div>
+        <div class="fg"><label>📦 Lugar de carga</label><input id="m-lc" placeholder="Ciudad, País"/></div>
+      </div>
+      <div class="fg-row c3">
+        <div class="fg"><label>📅 Fecha de carga</label><input id="m-fc" type="date"/></div>
+        <div class="fg"><label>🕐 Hora de carga</label><input id="m-hc" type="time"/></div>
+        <div class="fg"><label>📦 Pies de caja</label><input id="m-pies" type="number" placeholder="53"/></div>
+      </div>
+      <div class="sep">Identificación</div>
+      <div class="fg-row c3">
+        <div class="fg"><label>🔢 N° interno</label><input id="m-ni" type="number" placeholder="1"/></div>
+        <div class="fg"><label>N° de viaje</label><input id="m-id" placeholder="VJ-004"/></div>
+        <div class="fg"><label>🧑‍✈️ Piloto (opcional)</label><input id="m-pi" placeholder="Se asigna después"/></div>
+      </div>
+      <div class="sep">💰 Datos financieros (opcional)</div>
+      <div style="padding:10px 12px;background:#faf5ff;border-radius:8px;border:1px solid #e9d5ff;">
+        <div class="fg-row c3">
+          <div class="fg"><label>💰 Precio venta</label><input id="m-venta" type="number" placeholder="0.00" step="0.01" oninput="calcUtilidadPreview()"/></div>
+          <div class="fg"><label>💸 Precio costo</label><input id="m-costo" type="number" placeholder="0.00" step="0.01" oninput="calcUtilidadPreview()"/></div>
+          <div class="fg"><label>💵 Adelanto</label><input id="m-adelanto" type="number" placeholder="0.00" step="0.01"/></div>
+        </div>
+        <div id="utilidad-preview" style="font-size:12px;color:#64748b;margin-top:4px;"></div>
+      </div>
+      <div class="sep">📝 Notas internas (opcional)</div>
+      <textarea id="m-notas" placeholder="Notas privadas del viaje — no visibles en el tablero..."
+        style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;resize:vertical;min-height:60px;color:#1a1a2e;"></textarea>
+      <div class="m-actions">
+        <button class="m-cancel" onclick="closeModal()">Cancelar</button>
+        <button class="m-save" onclick="saveTrip()">＋ Crear solicitud</button>
+      </div>
+    </div>
+  </div>`;
+  // Pre-rellenar N° interno y N° viaje con valores por defecto
+  const nextSeq = trips.length + 1;
+  document.getElementById('m-ni').value = nextSeq;
+  document.getElementById('m-id').value = 'VJ-' + String(nextSeq).padStart(3,'0');
+  setTimeout(()=>document.getElementById('m-cl').focus(),50);
+}
+function toggleFinanzasModal(){
+  const div=document.getElementById('modal-finanzas');
+  const arrow=document.getElementById('fin-arrow');
+  const open=div.style.display==='none';
+  div.style.display=open?'block':'none';
+  arrow.textContent=open?'▲':'▼';
+  if(open){
+    // Actualizar preview de utilidad en tiempo real
+    ['m-venta','m-costo'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', calcUtilidadPreview);
+    });
+  }
+}
+function calcUtilidadPreview(){
+  const venta=parseFloat(document.getElementById('m-venta')?.value)||0;
+  const costo=parseFloat(document.getElementById('m-costo')?.value)||0;
+  const el=document.getElementById('utilidad-preview');
+  if(!el)return;
+  if(!venta&&!costo){el.textContent='';return;}
+  const util=venta-costo;
+  const color=util>0?'#15803d':util<0?'#dc2626':'#64748b';
+  const signo=util>=0?'+':'';
+  el.innerHTML=`Utilidad: <strong style="color:${color}">${signo}$${util.toFixed(2)}</strong>`;
+}
+function verFinanzas(ti){
+  const t=trips[ti];
+  const v=parseMonto(t.venta);
+  const c=parseMonto(t.costo);
+  const a=parseMonto(t.adelanto);
+  const util=v-c;
+  const uColor=util>0?'#15803d':util<0?'#dc2626':'#64748b';
+  const uBg   =util>0?'#dcfce7':util<0?'#fee2e2':'#f8fafc';
+  const uBorder=util>0?'#86efac':util<0?'#fca5a5':'#e2e8f0';
+  const signo=util>=0?'+':'';
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" >
+    <div class="modal" style="width:380px;">
+      <h2>💰 Datos financieros — ${t.id}</h2>
+      <p class="modal-sub">${t.cliente||''}</p>
+      <div class="fg-row c3" style="margin-top:12px;">
+        <div class="fg"><label>💰 Precio venta</label>
+          <input id="fin-venta" type="number" step="0.01" value="${parseMonto(t.venta)||''}" placeholder="0.00" oninput="recalcUtil()"/></div>
+        <div class="fg"><label>💸 Precio costo</label>
+          <input id="fin-costo" type="number" step="0.01" value="${parseMonto(t.costo)||''}" placeholder="0.00" oninput="recalcUtil()"/></div>
+        <div class="fg"><label>💵 Adelanto</label>
+          <input id="fin-adelanto" type="number" step="0.01" value="${parseMonto(t.adelanto)||''}" placeholder="0.00"/></div>
+      </div>
+      <div id="fin-util-box" style="margin-top:8px;padding:14px 18px;border-radius:10px;background:${uBg};border:1px solid ${uBorder};display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;color:#64748b;font-weight:600;">Utilidad</span>
+        <span id="fin-util-num" style="font-size:22px;font-weight:800;color:${uColor};">${signo}$${util.toFixed(2)}</span>
+      </div>
+      <div class="m-actions" style="margin-top:14px;">
+        <button class="m-cancel" onclick="closeModal()">Cancelar</button>
+        <button class="m-save" onclick="guardarFinanzas(${ti})">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>document.getElementById('fin-venta').focus(),50);
+}
+function recalcUtil(){
+  const v=parseFloat(document.getElementById('fin-venta')?.value)||0;
+  const c=parseFloat(document.getElementById('fin-costo')?.value)||0;
+  const util=v-c;
+  const el=document.getElementById('fin-util-num');
+  const box=document.getElementById('fin-util-box');
+  if(!el||!box)return;
+  const uColor=util>0?'#15803d':util<0?'#dc2626':'#64748b';
+  const uBg   =util>0?'#dcfce7':util<0?'#fee2e2':'#f8fafc';
+  const uBorder=util>0?'#86efac':util<0?'#fca5a5':'#e2e8f0';
+  el.textContent=(util>=0?'+':'')+'$'+util.toFixed(2);
+  el.style.color=uColor;
+  box.style.background=uBg;
+  box.style.borderColor=uBorder;
+}
+function guardarFinanzas(ti){
+  trips[ti].venta   =document.getElementById('fin-venta')?.value.trim()||'';
+  trips[ti].costo   =document.getElementById('fin-costo')?.value.trim()||'';
+  trips[ti].adelanto=document.getElementById('fin-adelanto')?.value.trim()||'';
+  exportado=false; scheduleSave(); closeModal(); renderBoard();
+  toast('✅ Datos financieros guardados');
+}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+function saveTrip(){
+  const cliente=document.getElementById('m-cl').value.trim();
+  const exportador=document.getElementById('m-ex').value.trim();
+  const destino=document.getElementById('m-dest').value.trim();
+  const fechaCarga=document.getElementById('m-fc').value;
+  const horaCarga=document.getElementById('m-hc').value;
+  const pies=document.getElementById('m-pies').value.trim();
+  const lugarCarga=document.getElementById('m-lc').value.trim();
+  const id=document.getElementById('m-id').value.trim();
+  const numInterno=document.getElementById('m-ni')?.value.trim()||'';
+  const piloto=document.getElementById('m-pi').value.trim();
+  const notas=document.getElementById('m-notas')?.value.trim()||'';
+  const venta=document.getElementById('m-venta')?.value.trim()||'';
+  const costo=document.getElementById('m-costo')?.value.trim()||'';
+  const adelanto=document.getElementById('m-adelanto')?.value.trim()||'';
+  if(!cliente||!id){alert('Completá al menos el cliente y el número de viaje.');return;}
+  const checks={};
+  BLOCKS.forEach(b=>{checks[b.key]=stages[b.key].map(()=>0);});
+  trips.push({id,numInterno,cliente,exportador,destino,lugarCarga,piloto,fechaCarga,horaCarga,pies,venta,costo,adelanto,notas,checks});
+  closeModal(); exportado=false; scheduleSave(); renderBoard();
+  toast('✅ Solicitud '+id+' creada');
+}
+
+window.addEventListener('beforeunload',function(e){
+  if(trips.length&&!exportado){const msg='⚠ No has exportado el estado. ¿Seguro que querés cerrar?';e.preventDefault();e.returnValue=msg;return msg;}
+});
+
+// ── PILOTOS ──────────────────────────────────────────────────
+let pilotos = []; // {id, nombre, fecha, destino, pies}
+let pilotoIdSeq = 1;
+let tripSeq = 1; // para N° interno y N° viaje automáticos
+
+function destinoCompatible(destinosPiloto, destinoViaje) {
+  if (!destinosPiloto || !destinoViaje) return false;
+  const viaje = destinoViaje.toLowerCase().trim();
+  return destinosPiloto.split('-').map(d => d.trim().toLowerCase()).some(d => d && viaje.includes(d));
+}
+
+function switchTab(tab) {
+  const tabs = ['tablero','pilotos','resumen'];
+  const labels  = { tablero:'Nueva solicitud', pilotos:'Registrar piloto', resumen:'' };
+  const actions = { tablero:"openModal()", pilotos:"openModalPiloto()", resumen:'' };
+  tabs.forEach(t => {
+    document.getElementById('screen-'+t).style.display = t===tab ? '' : 'none';
+    const btnsL = document.getElementById('btns-'+t);
+    if(btnsL) btnsL.style.display = t===tab ? 'flex' : 'none';
+    const menuSec = document.getElementById('menu-sec-'+t);
+    if(menuSec) menuSec.style.display = t===tab ? 'flex' : 'none';
+    const btn = document.getElementById('tab-'+t);
+    if(btn){ btn.style.borderBottomColor = t===tab ? '#2563eb' : 'transparent'; btn.style.color = t===tab ? '#2563eb' : '#94a3b8'; }
+  });
+  // Botón principal
+  const btnP = document.getElementById('btn-accion-principal');
+  const sep  = document.getElementById('sep-accion');
+  if(btnP){
+    if(labels[tab]){
+      btnP.style.display='flex';
+      btnP.innerHTML='<span class="btn-icon">＋</span> '+labels[tab];
+      btnP.setAttribute('onclick', actions[tab]);
+      if(sep) sep.style.display='block';
+    } else {
+      btnP.style.display='none';
+      if(sep) sep.style.display='none';
+    }
+  }
+  // Mostrar/ocultar freeze del resumen y pilotos
+  const frz = document.getElementById('resumen-freeze');
+  if(frz) frz.style.display = tab==='resumen' ? 'block' : 'none';
+  const frzP = document.getElementById('pilotos-freeze');
+  if(frzP) frzP.style.display = tab==='pilotos' ? 'block' : 'none';
+  if (tab==='pilotos') renderPilotos();
+  if (tab==='resumen') renderResumen();
+}
+
+function limpiarPilotosViejos() {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const antes = pilotos.length;
+  pilotos = pilotos.filter(p => {
+    if (!p.fecha) return true; // sin fecha, no se elimina
+    const d = new Date(p.fecha); d.setHours(0,0,0,0);
+    const dias = Math.round((hoy - d) / 86400000);
+    return dias <= 5;
+  });
+  const eliminados = antes - pilotos.length;
+  if (eliminados > 0) {
+    exportado = false; scheduleSave();
+    toast(`🗑 ${eliminados} piloto${eliminados!==1?'s':''} eliminado${eliminados!==1?'s':''} por inactividad (+5 días)`);
+  }
+}
+
+function renderPilotos() {
+  limpiarPilotosViejos();
+  const el = document.getElementById('pilotos-board');
+  // Badge en pestaña
+  const badge = document.getElementById('pilotos-badge');
+  if (pilotos.length) { badge.style.display='inline'; badge.textContent=pilotos.length; }
+  else badge.style.display='none';
+
+  if (!pilotos.length) {
+    const fh2 = document.getElementById('pilotos-freeze-header');
+    const ft2 = document.getElementById('pilotos-freeze-thead');
+    if (fh2) fh2.innerHTML = `<div class="pilotos-header" style="border-radius:0;"><h2>🧑‍✈️ Pilotos disponibles</h2><span class="pilotos-count">0</span></div>`;
+    if (ft2) ft2.innerHTML = '';
+    el.innerHTML = `<div class="pilotos-wrap" style="border-radius:0 0 12px 12px;border-top:none;">
+      <div class="pilotos-empty">No hay pilotos registrados. Presioná <strong>"+ Registrar piloto"</strong> para agregar.</div>
+    </div>`; return;
+  }
+
+  const rows = pilotos.map((p,i) => {
+    // Viajes compatibles: mismo destino o mismos pies (sugerencia)
+    const compatibles = trips.filter(t => {
+      const sinPiloto = !t.piloto;
+      const destOk = destinoCompatible(p.destino, t.destino);
+      const piesOk = p.pies && t.pies && String(t.pies).trim() === String(p.pies).trim();
+      return sinPiloto && destOk && piesOk;
+    });
+    const sugerTag = compatibles.length
+      ? `<span style="font-size:10px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:99px;padding:1px 7px;font-weight:600;">${compatibles.length} viaje${compatibles.length>1?'s':''} compatible${compatibles.length>1?'s':''}</span>`
+      : '';
+    return `<tr>
+      <td class="pil-nombre">${p.nombre}</td>
+      <td class="pil-fecha">${p.fecha||'—'}</td>
+      <td class="pil-dest">${p.destino||'—'}</td>
+      <td>${p.pies ? p.pies+' pies' : '—'}</td>
+      <td style="font-size:12px;color:#374151;">${p.ref||'<em style="color:#cbd5e1;font-style:italic;">—</em>'}</td>
+      <td>${sugerTag}</td>
+      <td style="white-space:nowrap;">
+        <button class="pil-asignar" onclick="abrirAsignacion(${i})" title="Asignar a un viaje">📋 Asignar</button>
+        <button class="pil-del" onclick="eliminarPiloto(${i})" title="Eliminar">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Freeze: header + thead sticky
+  const fh = document.getElementById('pilotos-freeze-header');
+  const ft = document.getElementById('pilotos-freeze-thead');
+  if (fh) fh.innerHTML = `<div class="pilotos-header" style="border-radius:0;">
+    <h2>🧑‍✈️ Pilotos disponibles</h2>
+    <span class="pilotos-count">${pilotos.length} piloto${pilotos.length!==1?'s':''}</span>
+  </div>`;
+  if (ft) ft.innerHTML = `<table class="pilotos-table" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;box-shadow:0 2px 3px rgba(0,0,0,0.05);">
+    <thead><tr>
+      <th style="top:0!important;">Nombre</th>
+      <th style="top:0!important;">Fecha registro</th>
+      <th style="top:0!important;">Destino solicitado</th>
+      <th style="top:0!important;">Pies</th>
+      <th style="top:0!important;">Recomendado por</th>
+      <th style="top:0!important;">Compatibilidad</th>
+      <th style="top:0!important;"></th>
+    </tr></thead>
+  </table>`;
+
+  // Body: solo los datos
+  el.innerHTML = `<div class="pilotos-wrap" style="border-radius:0 0 12px 12px;border-top:none;">
+    <table class="pilotos-table">
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function openModalPiloto() {
+  const hoy = new Date().toISOString().slice(0,10);
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal" style="width:420px;">
+      <h2>🧑‍✈️ Registrar piloto disponible</h2>
+      <p class="modal-sub">Piloto que llamó pidiendo carga</p>
+      <div class="fg"><label>👤 Nombre del piloto</label><input id="np-nombre" placeholder="Nombre completo"/></div>
+      <div class="fg-row c2">
+        <div class="fg"><label>📅 Fecha de llamada</label><input id="np-fecha" type="date" value="${hoy}"/></div>
+        <div class="fg"><label>🚛 Pies de caja</label><input id="np-pies" type="number" placeholder="53"/></div>
+      </div>
+      <div class="fg"><label>📍 Destino solicitado</label><input id="np-dest" placeholder="Ciudad, País (opcional)"/></div>
+      <div class="fg"><label>👥 Recomendado por</label><input id="np-ref" placeholder="Nombre del contacto que lo recomendó"/></div>
+      <div class="m-actions">
+        <button class="m-cancel" onclick="closeModal()">Cancelar</button>
+        <button class="m-save" onclick="guardarPilotoLista()">＋ Registrar</button>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>document.getElementById('np-nombre').focus(),50);
+}
+
+function guardarPilotoLista() {
+  const nombre = document.getElementById('np-nombre').value.trim();
+  if (!nombre) { alert('Ingresá el nombre del piloto.'); return; }
+  const fecha  = document.getElementById('np-fecha').value;
+  const pies   = document.getElementById('np-pies').value.trim();
+  const destino= document.getElementById('np-dest').value.trim();
+  const ref    = document.getElementById('np-ref').value.trim();
+  pilotos.push({ id: pilotoIdSeq++, nombre, fecha, pies, destino, ref });
+  closeModal();
+  scheduleSave();
+  renderPilotos();
+  // Actualizar badge
+  const badge = document.getElementById('pilotos-badge');
+  badge.style.display='inline'; badge.textContent=pilotos.length;
+  toast('✅ Piloto registrado');
+}
+
+function eliminarPiloto(i) {
+  if (!confirm(`¿Eliminar a ${pilotos[i].nombre} de la lista?`)) return;
+  pilotos.splice(i,1);
+  scheduleSave();
+  renderPilotos();
+  toast('Piloto eliminado');
+}
+
+function abrirAsignacion(pi) {
+  const p = pilotos[pi];
+  // Viajes sin piloto
+  const sinPiloto = trips.map((t,ti)=>({t,ti})).filter(({t})=>!t.piloto);
+  // Marcar los compatibles
+  const rows = sinPiloto.length ? sinPiloto.map(({t,ti}) => {
+    const destOk = destinoCompatible(p.destino, t.destino);
+    const piesOk = p.pies && t.pies && String(t.pies).trim() === String(p.pies).trim();
+    const match  = destOk && piesOk;
+    const bg     = match ? 'background:#f0fdf4;' : '';
+    const tag    = match ? '<span style="font-size:10px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:99px;padding:1px 6px;margin-left:6px;">✓ compatible</span>' : '';
+    return `<tr style="${bg}cursor:pointer;" onclick="asignarPilotoAViaje(${pi},${ti})">
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;">${t.id}${tag}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#374151;">${t.exportador||'—'}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#2563eb;">${t.destino||'—'}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#64748b;">${t.pies ? t.pies+' pies' : '—'}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="padding:20px;text-align:center;color:#94a3b8;font-size:12px;">No hay viajes sin piloto asignado</td></tr>';
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal" style="width:520px;">
+      <h2>📋 Asignar ${p.nombre}</h2>
+      <p class="modal-sub">Seleccioná el viaje al que querés asignarlo. Los compatibles están resaltados.</p>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-top:10px;">
+        <thead><tr style="background:#f8fafc;">
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">N° Viaje</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Exportador</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Destino</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Pies</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="m-actions"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
+    </div>
+  </div>`;
+}
+
+function asignarPilotoAViaje(pi, ti) {
+  const p = pilotos[pi];
+  trips[ti].piloto = p.nombre;
+  // Marcar "Asignado" automáticamente
+  marcarSolicitud(ti, 0, 1);
+  pilotos.splice(pi, 1);
+  exportado = false; scheduleSave();
+  // Volver al tablero primero
+  closeModal();
+  switchTab('tablero');
+  renderBoard();
+  renderPilotos();
+  // Actualizar badge
+  const badge = document.getElementById('pilotos-badge');
+  if (pilotos.length) { badge.style.display='inline'; badge.textContent=pilotos.length; }
+  else badge.style.display='none';
+  toast(`✅ ${p.nombre} asignado al viaje ${trips[ti].id}`);
+}
+
+function exportarPilotos(){
+  if(!pilotos.length){toast('⚠ No hay pilotos para exportar');return;}
+  const header=['Nombre','Fecha','Destino','Pies','Recomendado por'];
+  const rows=pilotos.map(p=>[p.nombre,p.fecha||'',p.destino||'',p.pies||'',p.ref||'']);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+  XLSX.utils.book_append_sheet(wb,ws,'Pilotos');
+  XLSX.writeFile(wb,'pilotos_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('✅ Pilotos exportados');
+}
+
+function importarPilotos(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(aoa.length<2){toast('⚠ El archivo está vacío');return;}
+      const hdr=aoa[0].map(h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''));
+      function col(...names){for(const n of names){const idx=hdr.findIndex(h=>h.includes(n));if(idx>=0)return idx;}return -1;}
+      const iNom=col('nombre','piloto','name');
+      const iFec=col('fecha','date');
+      const iDest=col('destino','dest');
+      const iPies=col('pies','caja','feet');
+      const iRef =col('recomendado','ref','contacto');
+      if(iNom<0){toast('⚠ No se encontró columna "Nombre"');return;}
+      const nuevos=aoa.slice(1)
+        .filter(row=>row.some(c=>c!==''))
+        .map(row=>({
+          id:pilotoIdSeq++,
+          nombre:String(row[iNom]||'').trim(),
+          fecha: iFec>=0?String(row[iFec]||'').trim():'',
+          destino:iDest>=0?String(row[iDest]||'').trim():'',
+          pies:  iPies>=0?String(row[iPies]||'').trim():'',
+          ref:   iRef>=0 ?String(row[iRef ]||'').trim():'',
+        }))
+        .filter(p=>p.nombre);
+      if(!nuevos.length){toast('⚠ No se encontraron pilotos válidos');return;}
+      const reemplazar=pilotos.length?confirm('Ya hay '+pilotos.length+' piloto(s).\n¿Reemplazar todo? (Cancelar = agregar al final)'):true;
+      if(reemplazar)pilotos=nuevos; else pilotos=[...pilotos,...nuevos];
+      renderPilotos();
+      toast('✅ '+nuevos.length+' piloto(s) importados');
+      scheduleSave();
+    }catch(err){toast('❌ Error: '+err.message);console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);e.target.value='';
+}
+
+// ── RESUMEN DE CARGA ─────────────────────────────────────────
+// Viajes que llegaron al bloque "pretransito" (En carga) o posterior
+function viajesEnCarga() {
+  // Todos los viajes, ordenados por numInterno (numérico), sin interno al final
+  return [...trips].sort((a,b) => {
+    const na = parseInt(a.numInterno)||0;
+    const nb = parseInt(b.numInterno)||0;
+    if (na && nb) return na - nb;
+    if (na) return -1;
+    if (nb) return 1;
+    return 0;
+  });
+}
+
+function getExtra(id) {
+  if (!resumenExtra[id]) resumenExtra[id] = { oc:'', placa:'', transportista:'', nacionalidad:'', fechaColocacion:'' };
+  return resumenExtra[id];
+}
+
+function seleccionarViaje(ti) {
+  viajeSeleccionado = ti;
+  const bar = document.getElementById('viaje-sel-bar');
+  if (ti === null) {
+    bar.style.display = 'none';
+    // Ajustar top del filtros si está visible
+    const fb = document.getElementById('filtros-bar');
+    if (fb && fb.style.display !== 'none') fb.style.top = '131px';
+  } else {
+    const t = trips[ti];
+    bar.style.display = 'flex';
+    document.getElementById('viaje-sel-id').textContent = (t.numInterno ? '#'+t.numInterno+' · ' : '') + (t.id||'');
+    document.getElementById('viaje-sel-info').textContent = (t.cliente||'') + (t.exportador ? ' · '+t.exportador : '') + (t.destino ? ' → '+t.destino : '');
+    // Ajustar top del filtros si está visible
+    setTimeout(()=>{
+      const fb = document.getElementById('filtros-bar');
+      if (fb && fb.style.display !== 'none') fb.style.top = calcFiltrosTop();
+    }, 30);
+  }
+  renderBoard();
+}
+
+function accionViaje(accion) {
+  if (viajeSeleccionado === null) { toast('⚠ Seleccioná un viaje primero'); return; }
+  const ti = viajeSeleccionado;
+  switch(accion) {
+    case 'copiar':   copiarViaje(ti);    break;
+    case 'devolver': devolverViaje(ti);  break;
+    case 'pedir':    pedirProveedor(ti); break;
+    case 'notas':    verNotas(ti);       break;
+    case 'finanzas': verFinanzas(ti);    break;
+    case 'avanzar': avanzarViaje(ti); break;
+    case 'eliminar':
+      if (confirm('¿Eliminar el viaje ' + (trips[ti].id||'') + '?')) {
+        trips.splice(ti, 1);
+        seleccionarViaje(null);
+        exportado = false; scheduleSave();
+        renderBoard();
+        toast('Viaje eliminado');
+      }
+      break;
+  }
+}
+
+function devolverViaje(ti) {
+  const t = trips[ti];
+  sync(t);
+
+  // Determinar el bloque activo actual
+  const bloqueActual = activeBlock(t);
+  const bIdx = BLOCKS.findIndex(b => b.key === bloqueActual);
+
+  if (bIdx <= 0) {
+    // Ya está en el primer bloque — limpiar todo dentro de solicitud
+    if (t.checks.solicitud.every(v => v === 0)) {
+      toast('⚠ El viaje ya está en el inicio');
+      return;
+    }
+  }
+
+  const nombreActual = BLOCKS[bIdx]?.label || bloqueActual;
+  const nombreAnterior = bIdx > 0 ? BLOCKS[bIdx-1].label : 'inicio de ' + (BLOCKS[0]?.label || 'Solicitud');
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay">
+    <div class="modal" style="width:400px;text-align:center;">
+      <div style="font-size:32px;margin-bottom:10px;">↩</div>
+      <h2 style="margin-bottom:6px;">Devolver viaje</h2>
+      <p class="modal-sub" style="margin-bottom:14px;">${t.id} — ${t.cliente||''}</p>
+      <p style="font-size:13px;color:#374151;margin-bottom:6px;">
+        El viaje está en <strong>${nombreActual}</strong>.
+      </p>
+      <p style="font-size:13px;color:#374151;margin-bottom:20px;">
+        ¿Devolver a <strong>${nombreAnterior}</strong>?<br>
+        <span style="font-size:11px;color:#94a3b8;">Se limpiarán todas las etapas del bloque actual.</span>
+      </p>
+      <div class="m-actions" style="justify-content:center;gap:12px;">
+        <button class="m-cancel" onclick="closeModal()">Cancelar</button>
+        <button class="m-save" style="background:#c2410c;border-color:#c2410c;" onclick="confirmarDevolver(${ti})">↩ Confirmar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function avanzarViaje(ti) {
+  const t = trips[ti];
+  sync(t);
+  const bloqueActual = activeBlock(t);
+  const bIdx = BLOCKS.findIndex(b => b.key === bloqueActual);
+  if (bIdx >= BLOCKS.length - 1) { toast('⚠ Ya está en el último bloque'); return; }
+  // Marcar todas las etapas del bloque actual como completadas y avanzar
+  t.checks[bloqueActual] = stages[bloqueActual].map(() => 1);
+  exportado = false; scheduleSave();
+  renderBoard();
+  toast(`→ ${t.id} avanzó a ${BLOCKS[bIdx+1].label}`);
+}
+
+function confirmarDevolver(ti) {
+  const t = trips[ti];
+  sync(t);
+  const bloqueActual = activeBlock(t);
+  const bIdx = BLOCKS.findIndex(b => b.key === bloqueActual);
+
+  // Limpiar todas las etapas del bloque actual
+  t.checks[bloqueActual] = stages[bloqueActual].map(() => 0);
+
+  // Si hay un bloque anterior, también limpiar la última etapa de ese bloque
+  // para que el viaje "retroceda" efectivamente
+  if (bIdx > 0) {
+    const bloqueAnterior = BLOCKS[bIdx-1].key;
+    const etapasAnt = stages[bloqueAnterior].length;
+    if (etapasAnt > 0) {
+      t.checks[bloqueAnterior][etapasAnt - 1] = 0;
+    }
+  }
+
+  exportado = false; scheduleSave();
+  closeModal();
+  renderBoard();
+  toast(`↩ Viaje ${t.id} devuelto`);
+}
+
+function copiarViaje(ti) {
+  const t = trips[ti];
+  const nextSeq = trips.length + 1;
+  const copia = {
+    ...t,
+    id:         'VJ-' + String(nextSeq).padStart(3,'0'),
+    numInterno: String(nextSeq),
+    piloto:     '', // piloto en blanco — se asigna nuevo
+    checks: {       // checks en cero — empieza desde el inicio
+      solicitud:   stages.solicitud.map(()=>0),
+      precarga:    stages.precarga.map(()=>0),
+      pretransito: stages.pretransito.map(()=>0),
+      transito:    stages.transito.map(()=>0),
+    }
+  };
+
+  // Abrir modal de edición pre-llenado con los datos del viaje copiado
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal">
+      <h2>⧉ Copiar viaje — ${t.id}</h2>
+      <p class="modal-sub">Revisá y ajustá los datos antes de crear</p>
+      <div class="sep">Información del viaje</div>
+      <div class="fg-row c2">
+        <div class="fg"><label>🏢 Cliente</label><input id="m-cl" value="${t.cliente||''}"/></div>
+        <div class="fg"><label>🏭 Exportador</label><input id="m-ex" value="${t.exportador||''}"/></div>
+      </div>
+      <div class="fg-row c2">
+        <div class="fg"><label>📍 Destino</label><input id="m-dest" value="${t.destino||''}"/></div>
+        <div class="fg"><label>📦 Lugar de carga</label><input id="m-lc" value="${t.lugarCarga||''}"/></div>
+      </div>
+      <div class="fg-row c3">
+        <div class="fg"><label>📅 Fecha de carga</label><input id="m-fc" type="date" value="${t.fechaCarga||''}"/></div>
+        <div class="fg"><label>🕐 Hora de carga</label><input id="m-hc" type="time" value="${t.horaCarga||''}"/></div>
+        <div class="fg"><label>📦 Pies de caja</label><input id="m-pies" type="number" value="${t.pies||''}"/></div>
+      </div>
+      <div class="sep">Identificación</div>
+      <div class="fg-row c3">
+        <div class="fg"><label>🔢 N° interno</label><input id="m-ni" type="number" value="${nextSeq}"/></div>
+        <div class="fg"><label>N° de viaje</label><input id="m-id" value="VJ-${String(nextSeq).padStart(3,'0')}"/></div>
+        <div class="fg"><label>🧑‍✈️ Piloto (opcional)</label><input id="m-pi" placeholder="Se asigna después"/></div>
+      </div>
+      <div class="sep">💰 Datos financieros (opcional)</div>
+      <div style="padding:10px 12px;background:#faf5ff;border-radius:8px;border:1px solid #e9d5ff;">
+        <div class="fg-row c3">
+          <div class="fg"><label>💰 Precio venta</label><input id="m-venta" type="number" value="${parseMonto(t.venta)||''}" placeholder="0.00" step="0.01" oninput="calcUtilidadPreview()"/></div>
+          <div class="fg"><label>💸 Precio costo</label><input id="m-costo" type="number" value="${parseMonto(t.costo)||''}" placeholder="0.00" step="0.01" oninput="calcUtilidadPreview()"/></div>
+          <div class="fg"><label>💵 Adelanto</label><input id="m-adelanto" type="number" value="${parseMonto(t.adelanto)||''}" placeholder="0.00" step="0.01"/></div>
+        </div>
+        <div id="utilidad-preview" style="font-size:12px;color:#64748b;margin-top:4px;"></div>
+      </div>
+      <div class="sep">📝 Notas internas (opcional)</div>
+      <textarea id="m-notas" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;resize:vertical;min-height:60px;">${t.notas||''}</textarea>
+      <div class="m-actions">
+        <button class="m-cancel" onclick="closeModal()">Cancelar</button>
+        <button class="m-save" onclick="saveTrip()">⧉ Crear copia</button>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>document.getElementById('m-fc').focus(),50);
+}
+
+function pedirProveedor(ti) {
+  const t = trips[ti];
+  const fechaStr = parseFecha(t.fechaCarga) || '—';
+  const horaStr  = parseHora(t.horaCarga)   || '—';
+
+  function buildMsg(notas) {
+    const lineas = [
+      '📦 *Solicitud de unidad*',
+      '━━━━━━━━━━━━━━━━━━━',
+      '🏭 *Exportador:* '     + (t.exportador  || '—'),
+      '📍 *Lugar de carga:* ' + (t.lugarCarga  || '—'),
+      '📅 *Fecha de carga:* ' + fechaStr,
+      '🕐 *Hora de carga:* '  + horaStr,
+      '🚛 *Pies de caja:* '   + (t.pies        || '—'),
+      '📍 *Destino:* '        + (t.destino     || '—'),
+    ];
+    if (notas && notas.trim()) {
+      lineas.push('📝 *Notas:* ' + notas.trim());
+    }
+    lineas.push('━━━━━━━━━━━━━━━━━━━');
+    return lineas.join('\n');
+  }
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay">
+    <div class="modal" style="width:440px;">
+      <h2>📋 Info para proveedor</h2>
+      <p class="modal-sub">${t.cliente||''} — ${t.id||''}</p>
+      <textarea id="pedir-msg" style="width:100%;height:190px;font-family:monospace;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;resize:none;color:#1a1a2e;margin-top:10px;" readonly>${buildMsg(t.notas)}</textarea>
+      <div class="fg" style="margin-top:10px;">
+        <label style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;display:block;">📝 Notas internas <span style="font-weight:400;color:#94a3b8;">(se incluyen en el mensaje)</span></label>
+        <textarea id="pedir-notas" rows="3"
+          style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:inherit;resize:vertical;color:#1a1a2e;"
+          placeholder="Agregar nota opcional..."
+          oninput="document.getElementById('pedir-msg').value=buildMsgPedir(${ti},this.value);"
+        >${t.notas||''}</textarea>
+      </div>
+      <div class="m-actions" style="margin-top:10px;">
+        <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+        <button class="btn" style="background:#fef9c3;color:#854d0e;border:1.5px solid #fcd34d;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;" onclick="guardarNotasDesdePedir(${ti})">💾 Guardar notas</button>
+        <button class="m-save" onclick="navigator.clipboard.writeText(document.getElementById('pedir-msg').value).then(()=>toast('✅ Copiado'))">📋 Copiar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildMsgPedir(ti, notas) {
+  const t = trips[ti];
+  const fechaStr = parseFecha(t.fechaCarga) || '—';
+  const horaStr  = parseHora(t.horaCarga)   || '—';
+  const lineas = [
+    '📦 *Solicitud de unidad*',
+    '━━━━━━━━━━━━━━━━━━━',
+    '🏭 *Exportador:* '     + (t.exportador  || '—'),
+    '📍 *Lugar de carga:* ' + (t.lugarCarga  || '—'),
+    '📅 *Fecha de carga:* ' + fechaStr,
+    '🕐 *Hora de carga:* '  + horaStr,
+    '🚛 *Pies de caja:* '   + (t.pies        || '—'),
+    '📍 *Destino:* '        + (t.destino     || '—'),
+  ];
+  if (notas && notas.trim()) lineas.push('📝 *Notas:* ' + notas.trim());
+  lineas.push('━━━━━━━━━━━━━━━━━━━');
+  return lineas.join('\n');
+}
+
+function guardarNotasDesdePedir(ti) {
+  const val = document.getElementById('pedir-notas')?.value.trim() || '';
+  trips[ti].notas = val;
+  exportado = false; scheduleSave();
+  renderBoard();
+  toast(val ? '✅ Notas guardadas' : 'Notas borradas');
+}
+
+function abrirCargaManana() {
+  cmExcluidos = new Set();
+  // Calcular fecha de mañana
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  manana.setHours(0,0,0,0);
+  const mananaStr = manana.toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long'});
+
+  function esManana(fechaCarga) {
+    if (!fechaCarga) return false;
+    const raw = String(fechaCarga);
+    let d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y,m,dy] = raw.split('-');
+      d = new Date(Number(y), Number(m)-1, Number(dy));
+    } else {
+      const clean = raw.replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/,'');
+      const mx = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (mx) d = new Date(Number(mx[3]), Number(mx[2])-1, Number(mx[1]));
+    }
+    if (!d) return false;
+    d.setHours(0,0,0,0);
+    return d.getTime() === manana.getTime();
+  }
+
+  const viajes = trips.filter(t => esManana(t.fechaCarga));
+
+  if (!viajes.length) {
+    toast('No hay viajes programados para mañana');
+    return;
+  }
+
+  // Estado de horas de salida por trip id (temporal, solo en el modal)
+  const horasSalida = {};
+  viajes.forEach(t => { horasSalida[t.id] = ''; });
+
+  function buildModal() {
+    const filas = viajes.map((t, i) => {
+      const idx = trips.indexOf(t);
+      return `<tr id="cm-row-${t.id}" style="border-bottom:1px solid #f1f5f9;">
+        <td style="padding:8px 10px;font-size:12px;font-weight:700;color:#7c3aed;">${t.numInterno||'—'}</td>
+        <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#1a1a2e;">${t.piloto||'<em style="color:#f59e0b;font-weight:400;">Sin asignar</em>'}</td>
+        <td style="padding:8px 10px;font-size:12px;color:#374151;">${t.cliente||'—'}</td>
+        <td style="padding:8px 10px;font-size:12px;color:#374151;">${t.exportador||'—'}</td>
+        <td style="padding:8px 10px;font-size:12px;color:#2563eb;font-weight:500;">${t.destino||'—'}</td>
+        <td style="padding:8px 10px;">
+          <input type="text" id="cm-nota-${t.id}" placeholder="Nota opcional..."
+            style="width:160px;padding:4px 7px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;color:#1a1a2e;"/>
+        </td>
+        <td style="padding:8px 10px;">
+          <input type="time" id="hs-${t.id}"
+            value="${horasSalida[t.id]||''}"
+            oninput="document.getElementById('hs-${t.id}').dataset.val=this.value;"
+            style="padding:4px 7px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit;width:110px;"/>
+        </td>
+        <td style="padding:8px 10px;text-align:center;">
+          <button onclick="quitarFilaCM('${t.id}')" title="Quitar"
+            style="background:#fef2f2;border:1.5px solid #fca5a5;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;padding:2px 8px;border-radius:6px;font-family:inherit;">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <div class="overlay">
+      <div class="modal" style="width:820px;max-width:96vw;">
+        <h2>🌅 Carga mañana — <span style="font-weight:400;font-size:14px;color:#64748b;">${mananaStr}</span></h2>
+        <p class="modal-sub">${viajes.length} equipo${viajes.length!==1?'s':''} programado${viajes.length!==1?'s':''}</p>
+        <div style="overflow:auto;max-height:55vh;margin-top:12px;border:1px solid #e2e8f0;border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;min-width:700px;">
+            <thead style="position:sticky;top:0;background:#f8fafc;z-index:2;">
+              <tr>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">N° int</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Piloto</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Cliente</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Exportador</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Destino</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Notas</th>
+                <th style="padding:7px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;">Hora salida predio</th>
+                <th style="width:36px;"></th>
+              </tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>
+        <div class="m-actions" style="margin-top:12px;">
+          <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+          <button class="m-save" onclick="copiarCargaManana()">📋 Copiar para WA</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('modal-root').innerHTML = buildModal();
+}
+
+// IDs excluidos del modal de carga mañana
+let cmExcluidos = new Set();
+
+function quitarFilaCM(id) {
+  cmExcluidos.add(id);
+  const row = document.getElementById('cm-row-'+id);
+  if (row) row.style.display = 'none';
+}
+
+function copiarCargaManana() {
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  manana.setHours(0,0,0,0);
+  const mananaStr = manana.toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long'});
+
+  function esManana(fechaCarga) {
+    if (!fechaCarga) return false;
+    const raw = String(fechaCarga);
+    let d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const [y,m,dy]=raw.split('-'); d=new Date(Number(y),Number(m)-1,Number(dy)); }
+    else { const clean=raw.replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/,''); const mx=clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/); if(mx) d=new Date(Number(mx[3]),Number(mx[2])-1,Number(mx[1])); }
+    if (!d) return false; d.setHours(0,0,0,0); return d.getTime()===manana.getTime();
+  }
+
+  const viajes = trips.filter(t => esManana(t.fechaCarga) && !cmExcluidos.has(t.id));
+
+  const lineas = [
+    '🌅 *Horas de salida para cargar mañana — ' + mananaStr + '*',
+    '━━━━━━━━━━━━━━━━━━━',
+  ];
+
+  viajes.forEach((t, i) => {
+    const hsEl   = document.getElementById('hs-'+t.id);
+    const notaEl = document.getElementById('cm-nota-'+t.id);
+    const horaSalida = hsEl   ? (hsEl.value  ||'').trim() : '';
+    const nota       = notaEl ? (notaEl.value||'').trim() : '';
+    lineas.push(
+      (i+1) + '. 🧑‍✈️ ' + (t.piloto||'Sin asignar') +
+      ' | 🏢 ' + (t.cliente||'—') +
+      ' | 🏭 ' + (t.exportador||'—') +
+      (horaSalida ? ' | 🕐 ' + horaSalida : '') +
+      (nota       ? ' | 📝 ' + nota       : '')
+    );
+  });
+
+  lineas.push('━━━━━━━━━━━━━━━━━━━');
+  lineas.push('Total: ' + viajes.length + ' equipo' + (viajes.length!==1?'s':''));
+
+  navigator.clipboard.writeText(lineas.join('\n'))
+    .then(() => toast('✅ Copiado al portapapeles'));
+}
+
+function abrirAdelantos() {
+  adelantosExcluidos = new Set(); // resetear exclusiones al abrir
+  // Viajes del día de hoy con piloto asignado
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  function eHoy(fechaCarga) {
+    if (!fechaCarga) return false;
+    const raw = String(fechaCarga);
+    let d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y,m,dy] = raw.split('-');
+      d = new Date(Number(y), Number(m)-1, Number(dy));
+    } else {
+      const mx = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (mx) d = new Date(Number(mx[3]), Number(mx[2])-1, Number(mx[1]));
+      else {
+        // Puede venir como "Lun 14/04/2026" — limpiar el dia
+        const clean = raw.replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/, '');
+        const mx2 = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (mx2) d = new Date(Number(mx2[3]), Number(mx2[2])-1, Number(mx2[1]));
+      }
+    }
+    if (!d) return false;
+    d.setHours(0,0,0,0);
+    return d.getTime() === hoy.getTime();
+  }
+
+  const viajesHoy = trips.filter(t => eHoy(t.fechaCarga));
+
+  if (!viajesHoy.length) {
+    toast('No hay viajes para hoy');
+    return;
+  }
+
+  // Calcular totales
+  const totalCosto    = viajesHoy.reduce((s,t) => s + parseMonto(t.costo),    0);
+  const totalAdelanto = viajesHoy.reduce((s,t) => s + parseMonto(t.adelanto), 0);
+
+  // Construir filas editables
+  const filas = viajesHoy.map((t, i) => {
+    const idx = trips.indexOf(t);
+    return `<tr id="ad-row-${idx}" style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:6px 8px;font-size:12px;font-weight:600;color:#1a1a2e;white-space:nowrap;">${t.piloto||'<em style="color:#f59e0b">Sin asignar</em>'}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#374151;white-space:nowrap;">${t.cliente||'—'}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#374151;white-space:nowrap;">${t.exportador||'—'}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#2563eb;font-weight:500;white-space:nowrap;">${t.destino||'—'}</td>
+      <td style="padding:6px 8px;">
+        <input type="number" step="0.01" value="${parseMonto(t.costo)||''}" placeholder="0.00"
+          style="width:95px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;font-family:inherit;"
+          oninput="trips[${idx}].costo=this.value;exportado=false;scheduleSave();recalcAdelantos();" /></td>
+      <td style="padding:6px 8px;">
+        <input type="number" step="0.01" value="${parseMonto(t.adelanto)||''}" placeholder="0.00"
+          style="width:95px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;font-family:inherit;"
+          oninput="trips[${idx}].adelanto=this.value;exportado=false;scheduleSave();recalcAdelantos();" /></td>
+      <td style="padding:6px 8px;text-align:center;">
+        <button onclick="eliminarDeAdelantos(${idx})" title="Quitar de la lista"
+          style="background:#fef2f2;border:1.5px solid #fca5a5;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;padding:2px 8px;border-radius:6px;font-family:inherit;line-height:1.4;">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay" >
+    <div class="modal" style="width:98vw;max-width:1100px;">
+      <h2>💵 Adelantos del día</h2>
+      <p class="modal-sub">${new Date().toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long'})} · ${viajesHoy.length} viaje${viajesHoy.length!==1?'s':''}</p>
+      <div style="overflow-x:auto;margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;max-height:60vh;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:700px;">
+          <thead><tr style="background:#f8fafc;">
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Piloto</th>
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Cliente</th>
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Exportador</th>
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Destino</th>
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Costo</th>
+            <th style="padding:7px 8px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;text-align:left;position:sticky;top:0;background:#f8fafc;z-index:2;">Adelanto</th>
+            <th style="padding:7px 8px;width:36px;position:sticky;top:0;background:#f8fafc;z-index:2;"></th>
+          </tr></thead>
+          <tbody>${filas}</tbody>
+          <tfoot>
+            <tr style="background:#1a1a2e;color:white;position:sticky;bottom:0;">
+              <td colspan="4" style="padding:8px 10px;font-size:11px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:0.05em;">Total</td>
+              <td id="ad-total-costo" style="padding:8px 10px;font-size:13px;font-weight:800;">$${totalCosto.toFixed(2)}</td>
+              <td id="ad-total-adelanto" style="padding:8px 10px;font-size:13px;font-weight:800;color:#86efac;">$${totalAdelanto.toFixed(2)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="m-actions" style="margin-top:12px;">
+        <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+        <button class="m-save" onclick="copiarAdelantosWA()">📋 Copiar para WA</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// IDs de viajes excluidos temporalmente de la tabla de adelantos
+let adelantosExcluidos = new Set();
+
+function esFechaHoy(fechaCarga) {
+  if (!fechaCarga) return false;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const raw = String(fechaCarga);
+  let d;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const [y,m,dy]=raw.split('-'); d=new Date(Number(y),Number(m)-1,Number(dy)); }
+  else { const mx=raw.replace(/^[A-Za-zÀ-ɏ]{2,4}\.?\s+/,'').match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/); if(mx) d=new Date(Number(mx[3]),Number(mx[2])-1,Number(mx[1])); }
+  if (!d) return false; d.setHours(0,0,0,0); return d.getTime()===hoy.getTime();
+}
+
+function recalcAdelantos() {
+  const viajesHoy = trips.filter((t,idx) => esFechaHoy(t.fechaCarga) && !adelantosExcluidos.has(idx));
+  const tc = viajesHoy.reduce((s,t)=>s+parseMonto(t.costo),0);
+  const ta = viajesHoy.reduce((s,t)=>s+parseMonto(t.adelanto),0);
+  const elC = document.getElementById('ad-total-costo');
+  const elA = document.getElementById('ad-total-adelanto');
+  if (elC) elC.textContent = '$'+tc.toFixed(2);
+  if (elA) elA.textContent = '$'+ta.toFixed(2);
+  // Actualizar badges del tablero en background
+  requestAnimationFrame(()=>{ try{ renderBoard(); }catch(e){} });
+}
+
+function eliminarDeAdelantos(idx) {
+  adelantosExcluidos.add(idx);
+  const row = document.getElementById('ad-row-'+idx);
+  if (row) row.style.display = 'none';
+  recalcAdelantos();
+}
+
+function copiarAdelantosWA() {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const viajesHoy = trips.filter((t,idx) => esFechaHoy(t.fechaCarga) && !adelantosExcluidos.has(idx));
+
+  const fecha = new Date().toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long'});
+  const lineas = [
+    '💵 *Adelantos — ' + fecha + '*',
+    '━━━━━━━━━━━━━━━━━━━',
+  ];
+  viajesHoy.forEach((t,i) => {
+    const costo   = parseMonto(t.costo);
+    const adelanto= parseMonto(t.adelanto);
+    lineas.push(
+      (i+1)+'. 🧑‍✈️ '+(t.piloto||'Sin asignar')+' | 🏢 '+(t.cliente||'—')+' | 🏭 '+(t.exportador||'—')+' | 📍 '+(t.destino||'—')+' | 💸 $'+costo.toFixed(2)+'  💵 $'+adelanto.toFixed(2)
+    );
+  });
+  const tc = viajesHoy.reduce((s,t)=>s+parseMonto(t.costo),0);
+  const ta = viajesHoy.reduce((s,t)=>s+parseMonto(t.adelanto),0);
+  lineas.push('━━━━━━━━━━━━━━━━━━━');
+  lineas.push('💸 Total costo: $'+tc.toFixed(2));
+  lineas.push('💵 Total adelantos: $'+ta.toFixed(2));
+
+  navigator.clipboard.writeText(lineas.join('\n')).then(()=>toast('✅ Copiado al portapapeles'));
+}
+
+function toISODate(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  return String(s);
+}
+
+function buildResumenLineas(clienteFiltro) {
+  // clienteFiltro: string de cliente o '' para todos
+  const sinPiloto = trips.filter(t => !t.piloto);
+  const clientes = clienteFiltro
+    ? [clienteFiltro]
+    : [...new Set(sinPiloto.map(t=>(t.cliente||'Sin cliente').trim()))].sort();
+
+  const lineas = [];
+  let totalGlobal = 0;
+
+  clientes.forEach(cl => {
+    const viajes = sinPiloto
+      .filter(t => (t.cliente||'Sin cliente').trim() === cl)
+      .sort((a,b) => toISODate(a.fechaCarga).localeCompare(toISODate(b.fechaCarga)));
+    if (!viajes.length) return;
+    totalGlobal += viajes.length;
+    lineas.push('📦 *' + cl + '* (' + viajes.length + ' viaje' + (viajes.length!==1?'s':'') + ')');
+    lineas.push('━━━━━━━━━━━━━━━━━━━');
+    viajes.forEach((t, i) => {
+      const fecha = parseFecha(t.fechaCarga) || '—';
+      const pies  = t.pies ? t.pies + ' pies' : '—';
+      lineas.push((i+1) + '. 📅 ' + fecha + '  🏭 ' + (t.exportador||'—') + '  📦 ' + pies + '  📍 ' + (t.destino||'—'));
+    });
+    if (clientes.length > 1) lineas.push('');
+  });
+
+  if (clientes.length > 1 && totalGlobal > 0) {
+    lineas.push('━━━━━━━━━━━━━━━━━━━');
+    lineas.push('Total general: ' + totalGlobal + ' viaje' + (totalGlobal!==1?'s':'') + ' sin asignar');
+  } else if (clientes.length === 1) {
+    lineas.push('━━━━━━━━━━━━━━━━━━━');
+    lineas.push('Total: ' + totalGlobal + ' viaje' + (totalGlobal!==1?'s':'') + ' sin asignar');
+  }
+  return lineas;
+}
+
+function abrirResumenWA() {
+  const sinPiloto = trips.filter(t => !t.piloto);
+  if (!sinPiloto.length) { toast('No hay viajes sin asignar'); return; }
+  const clientes = [...new Set(sinPiloto.map(t => (t.cliente||'Sin cliente').trim()))].sort();
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="overlay">
+    <div class="modal" style="width:520px;">
+      <h2>📲 Resumen para WhatsApp</h2>
+      <p class="modal-sub">Viajes sin piloto asignado</p>
+      <div class="fg" style="margin-bottom:12px;">
+        <label>🏢 Cliente</label>
+        <select id="rwa-cliente" onchange="generarResumenWA()" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;font-family:inherit;">
+          <option value="">— Todos los clientes —</option>
+          ${clientes.map(cl => `<option value="${cl}">${cl}</option>`).join('')}
+        </select>
+      </div>
+      <textarea id="rwa-msg" style="width:100%;height:280px;font-family:monospace;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;resize:none;color:#1a1a2e;" readonly></textarea>
+      <div class="m-actions" style="margin-top:10px;">
+        <button class="m-cancel" onclick="closeModal()">Cerrar</button>
+        <button class="m-save" onclick="navigator.clipboard.writeText(document.getElementById('rwa-msg').value).then(()=>toast('✅ Copiado al portapapeles'))">📋 Copiar</button>
+      </div>
+    </div>
+  </div>`;
+
+  // Generar con todos los clientes por defecto
+  setTimeout(() => generarResumenWA(), 30);
+}
+
+function generarResumenWA() {
+  const cliente = document.getElementById('rwa-cliente')?.value || '';
+  const lineas = buildResumenLineas(cliente);
+  const ta = document.getElementById('rwa-msg');
+  if (ta) ta.value = lineas.join('\n');
+}
+
+function calcFiltrosTop() {
+  // Calcula el top del filtros-bar según si la barra de viaje seleccionado está visible
+  const selBar = document.getElementById('viaje-sel-bar');
+  const selVisible = selBar && selBar.style.display !== 'none';
+  return (131 + (selVisible ? (selBar.offsetHeight || 44) : 0)) + 'px';
+}
+
+function toggleFiltros() {
+  const bar = document.getElementById('filtros-bar');
+  const btn = document.getElementById('btn-filtros');
+  const visible = bar.style.display !== 'none';
+  bar.style.display = visible ? 'none' : 'flex';
+  if (!visible) bar.style.top = calcFiltrosTop();
+  if (btn) {
+    btn.style.background   = visible ? '' : '#eff6ff';
+    btn.style.color        = visible ? '' : '#2563eb';
+    btn.style.borderColor  = visible ? '' : '#93c5fd';
+  }
+}
+
+function actualizarSelectsFiltros() {
+  const campos = ['cliente','exportador','piloto','destino'];
+  campos.forEach(campo => {
+    // Actualizar datalist
+    const dl = document.getElementById('dl-'+campo);
+    if (dl) {
+      const vals = [...new Set(trips.map(t=>(t[campo]||'').trim()).filter(Boolean))].sort();
+      dl.innerHTML = vals.map(v=>`<option value="${v}">`).join('');
+    }
+    // Mantener valor actual en el input
+    const inp = document.getElementById('f-'+campo);
+    if (inp && document.activeElement !== inp) {
+      inp.value = filtros[campo] || '';
+    }
+  });
+  const fEl = document.getElementById('f-fecha');
+  if (fEl) fEl.value = filtros.fecha || '';
+}
+
+function onFiltroInput(inp, campo) {
+  // Si el valor coincide exactamente con una opción, aplicar filtro inmediatamente
+  const dl = document.getElementById('dl-'+campo);
+  if (!dl) return;
+  const opts = [...dl.options].map(o=>o.value);
+  if (opts.includes(inp.value.trim())) {
+    aplicarFiltro(campo, inp.value.trim());
+  }
+  // Si borraron todo, limpiar filtro
+  if (!inp.value.trim()) {
+    aplicarFiltro(campo, '');
+  }
+}
+
+function aplicarFiltro(campo, valor) {
+  filtros[campo] = (valor||'').trim();
+  renderBoard();
+}
+
+function limpiarFiltros() {
+  filtros = { cliente:'', exportador:'', piloto:'', destino:'', fecha:'' };
+  ['cliente','exportador','piloto','destino'].forEach(campo => {
+    const inp = document.getElementById('f-'+campo); if(inp) inp.value='';
+  });
+  const f = document.getElementById('f-fecha'); if(f) f.value='';
+  renderBoard();
+}
+
+function toInputDate(val) {
+  if (!val) return '';
+  // Ya está en YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  // DD/MM/YYYY -> YYYY-MM-DD
+  const m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return val;
+}
+
+function parseMonto(v){ return parseFloat(String(v||'').replace(/[$,\s]/g,''))||0; }
+function montoTxt(v){ const n=parseMonto(v); return n?'$'+n.toFixed(2):'<span style="color:#cbd5e1">—</span>'; }
+function utilRow(lista){
+  const tv=lista.reduce((s,t)=>s+parseMonto(t.venta),0);
+  const tc=lista.reduce((s,t)=>s+parseMonto(t.costo),0);
+  return {tv,tc,tu:tv-tc};
+}
+
+function renderResumen() {
+  const el = document.getElementById('resumen-board');
+  const lista = viajesEnCarga();
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="resumen-wrap">
+      <div class="resumen-header"><h2>📊 Resumen de carga</h2><span class="resumen-count">0 viajes</span></div>
+      <div class="resumen-empty">No hay viajes registrados aún.</div>
+    </div>`; return;
+  }
+
+  // Columnas — sin placa, transportista, nacionalidad
+  const NCOLS = 10; // N°int, OC, Piloto, Fecha col, Exportador, Destino, Venta, Costo, Utilidad + acción futura
+  const thead = `<tr>
+    <th style="min-width:75px">N° int.</th>
+    <th style="min-width:85px">N° OC</th>
+    <th style="min-width:140px">Piloto</th>
+    <th style="min-width:115px">Fecha colocación</th>
+    <th style="min-width:150px">Exportador</th>
+    <th style="min-width:140px">Destino</th>
+    <th style="min-width:105px">Precio venta</th>
+    <th style="min-width:105px">Precio costo</th>
+    <th style="min-width:105px">Utilidad</th>
+  </tr>`;
+
+  // Agrupar por cliente
+  const clientes = [...new Set(lista.map(t=>(t.cliente||'Sin cliente').trim()))];
+
+  const bloques = clientes.map(cliente => {
+    const grupo = lista.filter(t=>(t.cliente||'Sin cliente').trim()===cliente);
+    const {tv,tc,tu} = utilRow(grupo);
+    const uColor = tu>0?'#15803d':tu<0?'#dc2626':'#64748b';
+    const uBg    = tu>0?'#dcfce7':tu<0?'#fee2e2':'#f8fafc';
+
+    const filas = grupo.map(t => {
+      const ex = getExtra(t.id);
+      const fechaCol = ex.fechaColocacion || toInputDate(t.fechaCarga) || '';
+      const venta = parseMonto(t.venta);
+      const costo = parseMonto(t.costo);
+      const util  = venta - costo;
+      const uCls  = util>0?'util-pos':util<0?'util-neg':'util-zero';
+      return `<tr>
+        <td><span class="rcell" style="font-weight:800;color:#7c3aed;">${t.numInterno||'—'}</span></td>
+        <td><input class="rcell-edit" value="${ex.oc||''}" placeholder="—" onchange="guardarExtra('${t.id}','oc',this.value)" style="font-weight:700;color:#7c3aed;"/></td>
+        <td><span class="rcell">${t.piloto||'<em style="color:#f59e0b;font-size:11px">Sin asignar</em>'}</span></td>
+        <td><input class="rcell-edit" type="date" value="${fechaCol}" onchange="guardarExtra('${t.id}','fechaColocacion',this.value)"/></td>
+        <td><span class="rcell">${t.exportador||'—'}</span></td>
+        <td><span class="rcell dest">${t.destino||'—'}</span></td>
+        <td><span class="rcell money">${montoTxt(t.venta)}</span></td>
+        <td><span class="rcell money">${montoTxt(t.costo)}</span></td>
+        <td><span class="rcell ${uCls}">${venta||costo?(util>=0?'+':'')+'$'+util.toFixed(2):'—'}</span></td>
+      </tr>`;
+    }).join('');
+
+    // Subtotal por cliente
+    const subtotal = `<tr style="background:#f1f5f9;border-top:2px solid #e2e8f0;">
+      <td colspan="6" style="padding:6px 12px;font-size:11px;font-weight:700;color:#475569;text-align:right;text-transform:uppercase;letter-spacing:0.05em;">
+        Subtotal ${cliente} (${grupo.length} viaje${grupo.length!==1?'s':''})
+      </td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:#1a1a2e;">$${tv.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:#1a1a2e;">$${tc.toFixed(2)}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${uColor};background:${uBg};">${tu>=0?'+':''}$${tu.toFixed(2)}</td>
+    </tr>`;
+
+    return `
+      <tr style="background:#1a1a2e;">
+        <td colspan="9" style="padding:8px 16px;">
+          <span style="font-size:12px;font-weight:700;color:white;">🏢 ${cliente}</span>
+          <span style="font-size:10px;color:#94a3b8;margin-left:8px;">${grupo.length} viaje${grupo.length!==1?'s':''}</span>
+        </td>
+      </tr>
+      ${filas}
+      ${subtotal}`;
+  }).join('');
+
+  // Total general
+  const {tv:gtv, tc:gtc, tu:gtu} = utilRow(lista);
+  const guColor = gtu>=0?'#86efac':'#fca5a5';
+  const totalRow = `<tr style="background:#0f172a;color:white;font-weight:800;">
+    <td colspan="6" style="padding:10px 14px;font-size:11px;text-align:right;text-transform:uppercase;letter-spacing:0.06em;">
+      TOTAL GENERAL — ${lista.length} viajes
+    </td>
+    <td style="padding:10px 12px;font-size:14px;">$${gtv.toFixed(2)}</td>
+    <td style="padding:10px 12px;font-size:14px;">$${gtc.toFixed(2)}</td>
+    <td style="padding:10px 12px;font-size:14px;color:${guColor};">${gtu>=0?'+':''}$${gtu.toFixed(2)}</td>
+  </tr>`;
+
+  // Definir anchos de columna como colgroup para sincronizar ambas tablas
+  const colgroup = `<colgroup>
+    <col style="width:75px"><col style="width:85px"><col style="width:150px">
+    <col style="width:130px"><col style="width:160px"><col style="width:150px">
+    <col style="width:110px"><col style="width:110px"><col style="width:110px">
+  </colgroup>`;
+
+  // Freeze: banner + thead en div sticky fuera del scroll
+  const freezeHeader = document.getElementById('resumen-freeze-header');
+  const freezeCols   = document.getElementById('resumen-freeze-cols');
+  const freezeDiv    = document.getElementById('resumen-freeze');
+
+  if(freezeHeader) freezeHeader.innerHTML = `
+    <div class="resumen-header" style="border-radius:0;">
+      <h2>📊 Resumen de carga</h2>
+      <span class="resumen-count">${lista.length} viaje${lista.length!==1?'s':''} · ${clientes.length} cliente${clientes.length!==1?'s':''}</span>
+    </div>`;
+
+  if(freezeCols) freezeCols.innerHTML = `
+    <table class="resumen-table resumen-cols" style="background:#f8fafc;border-bottom:2px solid #e2e8f0;box-shadow:0 2px 3px rgba(0,0,0,0.06);">
+      ${colgroup}<thead>${thead}</thead>
+    </table>`;
+
+  // Sincronizar scroll horizontal entre freeze y body
+  setTimeout(()=>{
+    const bodyScroll = document.getElementById('resumen-scroll-body');
+    const colsScroll = document.getElementById('resumen-freeze-cols');
+    if(bodyScroll && colsScroll){
+      bodyScroll.addEventListener('scroll', ()=>{ colsScroll.scrollLeft = bodyScroll.scrollLeft; });
+    }
+  }, 50);
+
+  el.innerHTML = `
+    <div id="resumen-scroll-body" style="overflow-x:auto;">
+      <table class="resumen-table resumen-cols">
+        ${colgroup}
+        <tbody>${bloques}</tbody>
+        <tfoot>${totalRow}</tfoot>
+      </table>
+    </div>`;
+}
+
+function guardarExtra(tripId, field, value) {
+  if (!resumenExtra[tripId]) resumenExtra[tripId] = {};
+  resumenExtra[tripId][field] = value;
+  exportado = false; scheduleSave();
+}
+
+function exportarResumen() {
+  const lista = viajesEnCarga();
+  if (!lista.length) { toast('⚠ No hay viajes en carga para exportar'); return; }
+  const header = ['N° Interno','N° OC','Piloto','Placa Cabezal','Transportista','Nacionalidad','Fecha Colocación','Cliente','Exportador','Destino','Precio Venta','Precio Costo','Utilidad'];
+  const rows = lista.map(t => {
+    const ex = getExtra(t.id);
+    const venta = parseFloat(t.venta)||0;
+    const costo = parseFloat(t.costo)||0;
+    const util  = venta - costo;
+    return [
+      t.numInterno||'', ex.oc||'', t.piloto||'', ex.placa||'', ex.transportista||'', ex.nacionalidad||'',
+      ex.fechaColocacion||'', t.cliente||'', t.exportador||'', t.destino||'',
+      venta||'', costo||'', (venta||costo)?util:'',
+    ];
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header,...rows]);
+  XLSX.utils.book_append_sheet(wb,ws,'Resumen');
+  XLSX.writeFile(wb,'resumen_carga_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('✅ Resumen exportado');
+}
+
+function importarResumen(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:false});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(aoa.length<2){toast('⚠ El archivo está vacío');return;}
+      const hdr=aoa[0].map(h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''));
+      function col(...names){for(const n of names){const idx=hdr.findIndex(h=>h.includes(n));if(idx>=0)return idx;}return -1;}
+      // Identificadores para hacer match con trips existentes
+      const iOC    = col('oc','noc','orden');
+      const iPil   = col('piloto');
+      const iPlaca = col('placa','cabezal');
+      const iTrans = col('transportista');
+      const iNac   = col('nacionalidad');
+      const iFec   = col('colocacion','fechacol');
+      const iCli   = col('cliente');
+      const iDest  = col('destino');
+      let actualizados=0, nuevos=0;
+      aoa.slice(1).filter(row=>row.some(c=>c!=='')).forEach(row=>{
+        const piloto  = String(row[iPil]||'').trim();
+        const cliente = String(row[iCli]||'').trim();
+        const destino = String(row[iDest]||'').trim();
+        // Intentar hacer match con un trip existente por cliente+destino+piloto
+        const trip = trips.find(t =>
+          (!cliente || (t.cliente||'').toLowerCase()===cliente.toLowerCase()) &&
+          (!destino || (t.destino||'').toLowerCase()===destino.toLowerCase()) &&
+          (!piloto  || (t.piloto||'').toLowerCase()===piloto.toLowerCase())
+        );
+        if(trip){
+          const ex = getExtra(trip.id);
+          if(iOC>=0)    ex.oc             = String(row[iOC]||'').trim()    || ex.oc;
+          if(iPlaca>=0) ex.placa          = String(row[iPlaca]||'').trim() || ex.placa;
+          if(iTrans>=0) ex.transportista  = String(row[iTrans]||'').trim() || ex.transportista;
+          if(iNac>=0)   ex.nacionalidad   = String(row[iNac]||'').trim()   || ex.nacionalidad;
+          if(iFec>=0)   ex.fechaColocacion= String(row[iFec]||'').trim()   || ex.fechaColocacion;
+          actualizados++;
+        } else {
+          nuevos++;
+        }
+      });
+      exportado=false; scheduleSave();
+      renderResumen();
+      let msg = '✅ Importado: '+actualizados+' actualizado(s)';
+      if(nuevos) msg += ', '+nuevos+' fila(s) sin coincidencia';
+      toast(msg);
+    }catch(err){toast('❌ Error: '+err.message);console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);e.target.value='';
+}
+
+// Iniciar sistema
+renderBoard();
+cargarDesdeSupabase().then(() => {
+  iniciarRealtime();
+});
+</script>
+</body>
+</html>
